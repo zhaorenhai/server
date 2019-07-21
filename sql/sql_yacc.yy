@@ -1470,6 +1470,8 @@ End SQL_MODE_ORACLE_SPECIFIC */
         condition_number
         opt_versioning_interval_start
 
+%type <num> opt_vers_auto_inc
+
 %type <item_param> param_marker
 
 %type <item_num>
@@ -5334,24 +5336,20 @@ opt_part_option:
 
 opt_versioning_rotation:
          /* empty */ {}
-       | INTERVAL_SYM expr interval opt_versioning_interval_start
+       | INTERVAL_SYM expr interval opt_versioning_interval_start opt_vers_auto_inc
          {
            partition_info *part_info= Lex->part_info;
            const char *table_name= Lex->create_last_non_select_table->table_name.str;
-           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4, table_name)))
+           if (unlikely(part_info->vers_set_interval(thd, $2, $3, $4, $5, table_name)))
              MYSQL_YYABORT;
          }
-       | LIMIT ulonglong_num
-       {
-         partition_info *part_info= Lex->part_info;
-         if (unlikely(part_info->vers_set_limit($2)))
+       | LIMIT ulonglong_num opt_vers_auto_inc
          {
-           my_error(ER_PART_WRONG_VALUE, MYF(0),
-                    Lex->create_last_non_select_table->table_name.str,
-                    "LIMIT");
-           MYSQL_YYABORT;
+           partition_info *part_info= Lex->part_info;
+           const char *table_name= Lex->create_last_non_select_table->table_name.str;
+           if (unlikely(part_info->vers_set_limit($2, $3, table_name)))
+             MYSQL_YYABORT;
          }
-       }
        ;
 
 
@@ -5366,6 +5364,16 @@ opt_versioning_interval_start:
          }
        ;
 
+opt_vers_auto_inc:
+         /* empty */
+         {
+           $$= 0;
+         }
+       | AUTO_SYM
+         {
+           $$= 1;
+         }
+       ;
 /*
  End of partition parser part
 */
@@ -7550,14 +7558,17 @@ add_partition_rule:
 
 add_part_extra:
           /* empty */
-        | '(' part_def_list ')'
+        | '(' part_def_list ')' opt_vers_auto_inc
           {
-            LEX *lex= Lex;
-            lex->part_info->num_parts= lex->part_info->partitions.elements;
+            Lex->part_info->num_parts= Lex->part_info->partitions.elements;
+            if ($4)
+              Lex->alter_info.partition_flags|= ALTER_PARTITION_AUTO_HIST;
           }
-        | PARTITIONS_SYM real_ulong_num
+        | PARTITIONS_SYM real_ulong_num opt_vers_auto_inc
           {
             Lex->part_info->num_parts= $2;
+            if ($3)
+              Lex->alter_info.partition_flags|= ALTER_PARTITION_AUTO_HIST;
           }
         ;
 
