@@ -2580,8 +2580,9 @@ lock_rec_inherit_to_gap(
 						this record */
 	ulint			heir_heap_no,	/*!< in: heap_no of the
 						inheriting record */
-	ulint			heap_no)	/*!< in: heap_no of the
+	ulint			heap_no,	/*!< in: heap_no of the
 						donating record */
+	bool interesting=false)
 {
 	lock_t*	lock;
 
@@ -2596,13 +2597,15 @@ lock_rec_inherit_to_gap(
 	for (lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
-
 		if (!lock_rec_get_insert_intention(lock)
 		    && !((srv_locks_unsafe_for_binlog
 			  || lock->trx->isolation_level
 			  <= TRX_ISO_READ_COMMITTED)
 			 && lock_get_mode(lock) ==
 			 (lock->trx->duplicates ? LOCK_S : LOCK_X))) {
+
+//			ut_a(!interesting || !(lock->type_mode & LOCK_WAIT));
+
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
 				heir_block, heir_heap_no, lock->index,
@@ -3500,7 +3503,8 @@ void
 lock_update_delete(
 /*===============*/
 	const buf_block_t*	block,	/*!< in: buffer block containing rec */
-	const rec_t*		rec)	/*!< in: the record to be removed */
+	const rec_t*		rec,	/*!< in: the record to be removed */
+	bool interesting)
 {
 	const page_t*	page = block->frame;
 	ulint		heap_no;
@@ -3523,8 +3527,8 @@ lock_update_delete(
 	lock_mutex_enter();
 
 	/* Let the next record inherit the locks from rec, in gap mode */
-
-	lock_rec_inherit_to_gap(block, block, next_heap_no, heap_no);
+//	if (!interesting)
+		lock_rec_inherit_to_gap(block, block, next_heap_no, heap_no, interesting);
 
 	/* Reset the lock bits on rec and release waiting transactions */
 
