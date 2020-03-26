@@ -10,3 +10,7 @@ usr/bin/mysqldumpslow
 usr/bin/mysqlimport
 usr/bin/mysqlshow
 usr/bin/mysqlslap
+usr/bin/replace
+usr/bin/mysqlhotcopy
+usr/bin/mysql_setpermission
+usr/bin/mysql_convert_table_format

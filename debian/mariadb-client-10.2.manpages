@@ -10,3 +10,7 @@ debian/additions/mysqlreport.1
 debian/tmp/usr/share/man/man1/mysqlshow.1
 debian/tmp/usr/share/man/man1/mysqlslap.1
 debian/tmp/usr/share/man/man1/mysql_waitpid.1
+debian/tmp/usr/share/man/man1/replace.1
+debian/tmp/usr/share/man/man1/mysqlhotcopy.1
+debian/tmp/usr/share/man/man1/mysql_setpermission.1
+debian/tmp/usr/share/man/man1/mysql_convert_table_format.1
