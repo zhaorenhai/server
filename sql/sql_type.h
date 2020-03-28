@@ -3903,10 +3903,15 @@ public:
 
   /*
     create a compact size key part for a sort key
+
+    @param to                   buffer to store value of keypart
+    @param item                 item corresponding to the keypart
+    @param sort_field           sort field structure
+    @param tmp_buffer           temporary buffer to store the packed value if needed
   */
   virtual uint make_packed_sort_key_part(uchar *to, Item *item,
                                          const SORT_FIELD_ATTR *sort_field,
-                                         Sort_param *param) const=0;
+                                         String *tmp_buffer) const=0;
 
   virtual void sort_length(THD *thd,
                           const Type_std_attributes *item,
@@ -4312,7 +4317,7 @@ public:
   }
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override
+                                 String *tmp_buffer) const override
   {
     DBUG_ASSERT(0);
     return 0;
@@ -4648,7 +4653,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -4759,7 +4764,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5013,7 +5018,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
@@ -5124,7 +5129,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -5215,7 +5220,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
@@ -6437,7 +6442,7 @@ public:
                           Sort_param *param) const override;
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
-                                 Sort_param *param) const override;
+                                 String *tmp_buffer) const override;
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;

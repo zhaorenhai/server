@@ -44,26 +44,66 @@ class Unique :public Sql_alloc
                             it to be written to record_pointers.
                             always 0 for unions, > 0 for intersections */
   bool with_counters;
+  /*
+    size in bytes used for storing keys in the Unique tree
+  */
+  size_t memory_used;
 
   bool merge(TABLE *table, uchar *buff, size_t size, bool without_last_merge);
   bool flush();
+
+  // return the amount of unused memory in the Unique tree
+  size_t space_left()
+  {
+    DBUG_ASSERT(max_in_memory_size >= memory_used);
+    return max_in_memory_size - memory_used;
+  }
+
+  // Check if the Unique tree is full or not
+  bool is_full(size_t record_size)
+  {
+    if (!tree.elements_in_tree)  // Atleast insert one element in the tree
+      return false;
+    return record_size > space_left();
+  }
 
 public:
   ulong elements;
   SORT_INFO sort;
   Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-	 uint size_arg, size_t max_in_memory_size_arg,
+         uint size_arg, size_t max_in_memory_size_arg,
          uint min_dupl_count_arg= 0);
-  ~Unique();
+  virtual ~Unique();
   ulong elements_in_tree() { return tree.elements_in_tree; }
-  inline bool unique_add(void *ptr)
+
+  /*
+    @brief
+      Add a record to the Unique tree
+    @param
+      ptr                      key value
+      size                     length of the key
+  */
+
+  inline bool unique_add(void *ptr, uint size_arg)
   {
     DBUG_ENTER("unique_add");
     DBUG_PRINT("info", ("tree %u - %lu", tree.elements_in_tree, max_elements));
-    if (!(tree.flag & TREE_ONLY_DUPS) && 
-        tree.elements_in_tree >= max_elements && flush())
+    TREE_ELEMENT *res;
+    size_t rec_size= size_arg + sizeof(TREE_ELEMENT) + tree.size_of_element;
+
+    if (!(tree.flag & TREE_ONLY_DUPS) && is_full(rec_size) && flush())
       DBUG_RETURN(1);
-    DBUG_RETURN(!tree_insert(&tree, ptr, 0, tree.custom_arg));
+    uint count= tree.elements_in_tree;
+    res= tree_insert(&tree, ptr, size_arg, tree.custom_arg);
+    if (tree.elements_in_tree != count)
+    {
+      /*
+        increment memory used only when a unique element is inserted
+        in the tree
+      */
+      memory_used+= rec_size;
+    }
+    DBUG_RETURN(!res);
   }
 
   bool is_in_memory() { return (my_b_tell(&file) == 0); }
@@ -96,15 +136,50 @@ public:
   bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
 
   uint get_size() const { return size; }
+  uint get_full_size() const { return full_size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
+  bool is_count_stored() { return with_counters; }
+  IO_CACHE *get_file ()  { return &file; }
+  virtual int write_record_to_file(uchar *key);
+
+  // returns TRUE if the unique tree stores packed values
+  virtual bool is_packed() { return false; }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
 
   friend int unique_write_to_file_with_count(uchar* key, element_count count,
                                              Unique *unique);
-  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count, 
+  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count,
 				            Unique *unique);
+};
+
+
+
+/*
+  Unique_packed class: derived from Unique class, used to store
+  records in packed format to efficiently utilize the space provided
+  inside the tree.
+*/
+
+class Unique_packed : public Unique
+{
+protected:
+  public:
+  Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                uint size_arg, size_t max_in_memory_size_arg,
+                uint min_dupl_count_arg);
+
+  bool is_packed() { return true; }
+  int write_record_to_file(uchar *key);
+
+  // returns the length of the key along with the length bytes for the key
+  static uint read_packed_length(uchar *p)
+  {
+    return size_of_length_field + uint4korr(p);
+  }
+
+  static const uint size_of_length_field= 4;
 };
 
 #endif /* UNIQUE_INCLUDED */

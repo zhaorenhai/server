@@ -311,6 +311,8 @@ class Window_spec;
   any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
   but still return false from Item_sum::const_item().
 */
+class Unique;
+class Variable_sized_keys;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -590,10 +592,11 @@ public:
 
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
+  bool is_packing_allowed(TABLE* table, uint* total_length);
+  Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                     uint size_arg, size_t max_in_memory_size_arg,
+                     uint min_dupl_count_arg, bool allow_packing);
 };
-
-
-class Unique;
 
 
 /**
@@ -679,10 +682,16 @@ class Aggregator_distinct : public Aggregator
   */
   bool use_distinct_values;
 
+  /*
+    Used to store information about variable sized keys
+    @see sql_sort.h for the class definition
+  */
+  Variable_sized_keys *variable_sized_keys;
+
 public:
   Aggregator_distinct (Item_sum *sum) :
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
-    always_null(false), use_distinct_values(false) {}
+    always_null(false), use_distinct_values(false), variable_sized_keys(NULL) {}
   virtual ~Aggregator_distinct ();
   Aggregator_type Aggrtype() { return DISTINCT_AGGREGATOR; }
 
@@ -696,7 +705,11 @@ public:
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
+  int insert_record_to_unique();
+  qsort_cmp2 get_compare_func_for_packed_keys();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2);
 };
 
 
@@ -1856,9 +1869,6 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
 int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
                                                const void *key2);
-int dump_leaf_key(void* key_arg,
-                  element_count count __attribute__((unused)),
-                  void* item_arg);
 C_MODE_END
 
 class Item_func_group_concat : public Item_sum
@@ -1910,6 +1920,8 @@ protected:
   */
   Item_func_group_concat *original;
 
+  Variable_sized_keys *variable_sized_keys;
+
   /*
     Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
     needs null values but the former doesn't.
@@ -1921,13 +1933,13 @@ protected:
   friend int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
                                                            const void* key1,
                                                            const void* key2);
+  friend int group_concat_packed_key_cmp_with_distinct(void *arg,
+                                                       const void *key1,
+                                                       const void *key2);
   friend int group_concat_key_cmp_with_order(void* arg, const void* key1,
 					     const void* key2);
   friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
                                        const void *key1, const void *key2);
-  friend int dump_leaf_key(void* key_arg,
-                           element_count count __attribute__((unused)),
-			   void* item_arg);
 
   bool repack_tree(THD *thd);
 
@@ -1942,6 +1954,9 @@ protected:
   virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
                                      const uchar *key, size_t offset)
     { return f->val_str(tmp, key + offset); }
+  virtual String *get_str_from_field(Item *i, Field *f, String *tmp)
+  { return f->val_str(tmp); }
+
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
 public:
@@ -2016,11 +2031,19 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
-  qsort_cmp2 get_comparator_function_for_distinct();
+  qsort_cmp2 get_comparator_function_for_distinct(bool packed);
   qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();
-
+  bool is_distinct_packed();
+  bool is_packing_allowed(uint* total_length);
+  static int dump_leaf_key(void* key_arg,
+                           element_count count __attribute__((unused)),
+                           void* item_arg);
+  static int dump_leaf_variable_sized_key(void *key_arg,
+                                          element_count __attribute__((unused)),
+                                          void *item_arg);
+  int insert_record_to_unique();
 };
 
 #endif /* ITEM_SUM_INCLUDED */

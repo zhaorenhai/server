@@ -42,18 +42,12 @@
 
 int unique_write_to_file(uchar* key, element_count count, Unique *unique)
 {
-  /*
-    Use unique->size (size of element stored in the tree) and not
-    unique->tree.size_of_element. The latter is different from unique->size
-    when tree implementation chooses to store pointer to key in TREE_ELEMENT
-    (instead of storing the element itself there)
-  */
-  return my_b_write(&unique->file, key, unique->size) ? 1 : 0;
+  return unique->write_record_to_file(key) ? 1 : 0;
 }
 
 int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
 {
-  return my_b_write(&unique->file, key, unique->size) ||
+  return unique_write_to_file(key, count, unique) ||
          my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
@@ -78,10 +72,11 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *uniq
 
 
 Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
-	       uint size_arg, size_t max_in_memory_size_arg,
+	             uint size_arg, size_t max_in_memory_size_arg,
                uint min_dupl_count_arg)
   :max_in_memory_size(max_in_memory_size_arg),
    size(size_arg),
+   memory_used(0),
    elements(0)
 {
   my_b_clear(&file);
@@ -90,7 +85,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
   with_counters= MY_TEST(min_dupl_count_arg);
-  init_tree(&tree, (max_in_memory_size / 16), 0, size, comp_func,
+  init_tree(&tree, (max_in_memory_size / 16), 0, 0, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
@@ -101,7 +96,14 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   max_elements= (ulong) (max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+size));
   if (!max_elements)
+  {
     max_elements= 1;
+    /*
+      Need to ensure that we have memory to store atleast one record
+      in the Unique tree
+    */
+    max_in_memory_size= sizeof(TREE_ELEMENT) + size;
+  }
 
   (void) open_cached_file(&file, mysql_tmpdir,TEMP_PREFIX, DISK_BUFFER_SIZE,
                           MYF(MY_WME));
@@ -389,6 +391,10 @@ bool Unique::flush()
 		(void*) this, left_root_right) ||
       insert_dynamic(&file_ptrs, (uchar*) &file_ptr))
     return 1;
+  /**
+    the tree gets reset so make sure the memory used is reset too
+  */
+  memory_used= 0;
   delete_tree(&tree, 0);
   return 0;
 }
@@ -495,7 +501,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                        uint key_length, Merge_chunk *begin, Merge_chunk *end,
                        tree_walk_action walk_action, void *walk_action_arg,
                        qsort_cmp2 compare, void *compare_arg,
-                       IO_CACHE *file, bool with_counters)
+                       IO_CACHE *file, bool with_counters,
+                       uint min_dupl_count, bool packed)
 {
   BUFFPEK_COMPARE_CONTEXT compare_context = { compare, compare_arg };
   QUEUE queue;
@@ -521,7 +528,12 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   // read_to_buffer() needs only rec_length.
   Sort_param sort_param;
   sort_param.rec_length= key_length;
+  sort_param.sort_length= key_length;
+  sort_param.min_dupl_count= min_dupl_count;
+  DBUG_ASSERT(sort_param.res_length  == 0);
   DBUG_ASSERT(!sort_param.using_addon_fields());
+  sort_param.set_using_packed_keys(packed);
+  uint size_of_dupl_count= min_dupl_count ? sizeof(element_count) : 0;
 
   /*
     Invariant: queue must contain top element from each tree, until a tree
@@ -534,7 +546,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     top->set_buffer(merge_buffer + (top - begin) * piece_size,
                     merge_buffer + (top - begin) * piece_size + piece_size);
     top->set_max_keys(max_key_count_per_piece);
-    bytes_read= read_to_buffer(file, top, &sort_param, false);
+    bytes_read= read_to_buffer(file, top, &sort_param, packed);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
     DBUG_ASSERT(bytes_read);
@@ -555,6 +567,10 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       read next key from the cache or from the file and push it to the
       queue; this gives new top.
     */
+    key_length= sort_param.get_record_length_for_unique((uchar*)old_key,
+                                                        size_of_dupl_count);
+
+    cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
     top->advance_current_key(key_length);
     top->decrement_mem_count();
     if (top->mem_count())
@@ -564,7 +580,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       /* save old_key not to overwrite it in read_to_buffer */
       memcpy(save_key_buff, old_key, key_length);
       old_key= save_key_buff;
-      bytes_read= read_to_buffer(file, top, &sort_param, false);
+      bytes_read= read_to_buffer(file, top, &sort_param, packed);
       if (unlikely(bytes_read == (ulong) -1))
         goto end;
       else if (bytes_read)      /* top->key, top->mem_count are reset */
@@ -604,7 +620,9 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   {
     do
     {
-      
+      key_length= sort_param.get_record_length_for_unique(top->current_key(),
+                                                          size_of_dupl_count);
+      cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
       cnt= with_counters ?
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;
       if (walk_action(top->current_key(), cnt, walk_action_arg))
@@ -612,7 +630,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       top->advance_current_key(key_length);
     }
     while (top->decrement_mem_count());
-    bytes_read= read_to_buffer(file, top, &sort_param, false);
+    bytes_read= read_to_buffer(file, top, &sort_param, packed);
     if (unlikely(bytes_read == (ulong) -1))
       goto end;
   }
@@ -678,7 +696,8 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
                     (Merge_chunk *) file_ptrs.buffer,
                     (Merge_chunk *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
-                    tree.compare, tree.custom_arg, &file, with_counters);
+                    tree.compare, tree.custom_arg, &file, with_counters,
+                    min_dupl_count, is_packed());
   }
   my_free(merge_buffer);
   return res;
@@ -730,9 +749,11 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.max_keys_per_buffer=
     (uint) MY_MAX((max_in_memory_size / sort_param.sort_length), MERGEBUFF2);
   sort_param.not_killable= 1;
+  sort_param.set_using_packed_keys(is_packed());
+  sort_param.set_packed_format(is_packed());
 
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
-				       sort_param.sort_length);
+                                 sort_param.sort_length);
 
   sort_param.compare= (qsort2_cmp) buffpek_compare;
   sort_param.cmp_context.key_compare= tree.compare;
@@ -760,7 +781,8 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
     file_ptrs.elements= maxbuffer+1;
     return 0;
   }
-  if (merge_index(&sort_param, Bounds_checked_array<uchar>(buff, buff_size),
+  if (merge_index(&sort_param,
+                  Bounds_checked_array<uchar>(buff, buff_size),
                   file_ptr, maxbuffer, &file, outfile))
     goto err;
   error= 0;
@@ -788,6 +810,8 @@ bool Unique::get(TABLE *table)
   uchar *sort_buffer= NULL;
   sort.return_rows= elements+tree.elements_in_tree;
   DBUG_ENTER("Unique::get");
+
+  DBUG_ASSERT(is_packed() == FALSE);
 
   if (my_b_tell(&file) == 0)
   {
@@ -830,4 +854,36 @@ bool Unique::get(TABLE *table)
 err:  
   my_free(sort_buffer);  
   DBUG_RETURN(rc);
+}
+
+
+Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                            uint size_arg, size_t max_in_memory_size_arg,
+                            uint min_dupl_count_arg):
+  Unique(comp_func, comp_func_fixed_arg, size_arg,
+         max_in_memory_size_arg, min_dupl_count_arg)
+{
+}
+
+
+/*
+  @brief
+    Write an intermediate unique record to the file
+
+  @param key                  key to be written
+
+  @retval
+    >0   Error
+    =0   Record successfully written
+*/
+
+int Unique::write_record_to_file(uchar *key)
+{
+  return my_b_write(get_file(), key, size);
+}
+
+
+int Unique_packed::write_record_to_file(uchar *key)
+{
+  return my_b_write(get_file(), key, read_packed_length(key));
 }

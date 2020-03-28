@@ -1,0 +1,23 @@
+Self review
+
+
+sql/field.h: DONE
+sql/sql_type.h: DONE
+sql/uniques.cc: DONE
+sql/uniques.h: DONE
+sql/opt_range.cc
+sql/sql_delete.cc
+sql/item_jsonfunc.cc
+sql/item_jsonfunc.h
+sql/filesort.h
+sql/sql_sort.h
+sql/item_sum.cc
+sql/item_sum.h
+sql/sql_class.h
+sql/filesort.cc
+
+
+
+
+sql/sql_statistics.cc
+sql/sql_statistics.h

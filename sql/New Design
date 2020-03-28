@@ -1,0 +1,22 @@
+New Design
+
+
+
+Top level:   Aggregator_distinct:     COUNT(DISTINT col1,.....)
+
+             Item_func_group_concat:  GROUP_CONCAT(DISTINCT col1, .....)
+                                      JSON_ARRAYAGG(DISTINCT col)
+
+             EITS                  :  ANALYZE TABLE tblname PERSISTENT FOR ALL
+
+
+Intermediate level:  Variable_sized_keys
+
+Contains all the information of the keyparts of the keys
+Creates the packed record for a key.
+Compares the packed keys
+
+
+Lower level:
+    Unique: fixed size 
+    Unique_packed: extended class , having dynamic sized keys
