@@ -1570,7 +1570,15 @@ public:
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
-      column->store_field_value((uchar *) elem, col_length);
+      if (column->is_packable())
+      {
+        uchar *start= (uchar*)elem + Unique::size_of_length_field;
+        // unpacking the value to the Field::ptr
+        column->unpack(column->ptr, start,
+                       start + Unique::read_packed_length((uchar*)elem), 0);
+      }
+      else
+        column->store_field_value((uchar *) elem, col_length);
       histogram->set_value(curr_bucket,
                            column->pos_in_interval(min_value, max_value)); 
       curr_bucket++;
@@ -1646,13 +1654,11 @@ public:
     of the parameters to be passed to the constructor of the Unique object. 
   */  
 
-  Count_distinct_field(Field *field, size_t max_heap_table_size)
+  Count_distinct_field(Field *field)
   {
     table_field= field;
-    tree_key_length= field->pack_length();
-
-    tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) field,
-                     tree_key_length, max_heap_table_size, 1);
+    tree_key_length= 0;
+    tree= NULL;
   }
 
   virtual ~Count_distinct_field()
@@ -1670,6 +1676,39 @@ public:
     return (tree != NULL);
   }
 
+
+  bool setup(THD *thd, size_t max_heap_table_size)
+  {
+    if (table_field->is_packable())
+    {
+      tree_key_length= table_field->sort_length() +
+                       number_storage_requirement(table_field->sort_length());
+      tree_key_length+= Unique::size_of_length_field;
+      tree= new Unique((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
+                       tree_key_length, max_heap_table_size, 1, TRUE);
+    }
+    else
+    {
+      if (table_field->type() == MYSQL_TYPE_BIT)
+      {
+        tree_key_length= sizeof(ulonglong);
+        tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
+                         (void*) &tree_key_length,
+                         tree_key_length, max_heap_table_size, 1, FALSE);
+      }
+      else
+      {
+        tree_key_length= table_field->pack_length();
+        tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
+                         tree_key_length, max_heap_table_size, 1, FALSE);
+      }
+    }
+    if (!tree)
+      return true;  // OOM
+
+    return tree->setup(thd, table_field);
+  }
+
   /*
     @brief
     Add the value of 'field' to the container of the Unique object 'tree'
@@ -1677,7 +1716,18 @@ public:
   virtual bool add()
   {
     table_field->mark_unused_memory_as_defined();
-    return tree->unique_add(table_field->ptr);
+    uchar *orig_to= table_field->ptr;
+    uint packed_length= 0;
+    if (tree->is_packed())
+    {
+      uchar *to;
+      orig_to= to= tree->get_packed_rec_ptr();
+      to+= Unique::size_of_length_field;
+      uchar* end= table_field->pack(to, table_field->ptr);
+      packed_length= static_cast<uint>(end - orig_to);
+      Unique::store_packed_length(orig_to, packed_length);
+    }
+    return tree->unique_add(orig_to, packed_length);
   }
 
   /*
@@ -1733,15 +1783,26 @@ public:
     return table_field->collected_stats->histogram.get_values();
   }
 
+  static int simple_packed_str_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
+
 };
 
 
-static
-int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2)
+int Count_distinct_field::simple_ulonglong_key_cmp(void* arg,
+                                                   uchar* key1, uchar* key2)
 {
   ulonglong *val1= (ulonglong *) key1;
   ulonglong *val2= (ulonglong *) key2;
   return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1; 
+}
+
+
+int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
+                                                    uchar* key1, uchar* key2)
+{
+  Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
+  return compare_arg->tree->compare_packed_keys(key1, key2);
 }
   
 
@@ -1755,20 +1816,12 @@ class Count_distinct_field_bit: public Count_distinct_field
 {
 public:
 
-  Count_distinct_field_bit(Field *field, size_t max_heap_table_size)
-  {
-    table_field= field;
-    tree_key_length= sizeof(ulonglong);
-
-    tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
-                     (void*) &tree_key_length,
-                     tree_key_length, max_heap_table_size, 1);
-  }
+  Count_distinct_field_bit(Field *field): Count_distinct_field(field){}
 
   bool add()
   {
     longlong val= table_field->val_int();   
-    return tree->unique_add(&val);
+    return tree->unique_add(&val, tree->get_size());
   }
 };
 
@@ -2344,8 +2397,11 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   {
     count_distinct=
       table_field->type() == MYSQL_TYPE_BIT ?
-      new Count_distinct_field_bit(table_field, max_heap_table_size) :
-      new Count_distinct_field(table_field, max_heap_table_size);
+      new Count_distinct_field_bit(table_field) :
+      new Count_distinct_field(table_field);
+
+    if (count_distinct && count_distinct->setup(thd, max_heap_table_size))
+      count_distinct= NULL;
   }
   if (count_distinct && !count_distinct->exists())
     count_distinct= NULL;

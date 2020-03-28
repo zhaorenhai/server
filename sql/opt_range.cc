@@ -11815,7 +11815,7 @@ int read_keys_and_merge_scans(THD *thd,
       continue;
 
     cur_quick->file->position(cur_quick->record);
-    if (unique->unique_add((char*)cur_quick->file->ref))
+    if (unique->unique_add((char*)cur_quick->file->ref, unique->get_size()))
       goto err;
   }
 

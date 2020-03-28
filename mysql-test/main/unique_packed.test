@@ -1,0 +1,89 @@
+create database dbt3;
+use dbt3;
+
+--disable_result_log
+--disable_query_log
+--source include/dbt3_s001.inc
+--enable_result_log
+--enable_query_log
+
+SET @save_tmp_table_size= @@tmp_table_size;
+CREATE VIEW v1 AS SELECT DISTINCT c_name as name FROM customer, orders WHERE c_custkey=o_custkey;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+
+SELECT COUNT(*) FROM v1;
+SELECT COUNT(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT GROUP_CONCAT(name) FROM v1;
+SELECT GROUP_CONCAT(DISTINCT c_name) FROM customer, orders WHERE c_custkey=o_custkey;
+
+DROP VIEW v1;
+
+CREATE VIEW v1 AS SELECT DISTINCT p_mfgr, p_brand FROM part;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT GROUP_CONCAT(p_brand order by p_brand) FROM v1 GROUP BY p_mfgr;
+SELECT GROUP_CONCAT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT COUNT(*) FROM v1 GROUP BY p_mfgr;
+SELECT COUNT(DISTINCT p_brand) FROM part GROUP BY p_mfgr;
+
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT DISTINCT p_mfgr, p_name FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey;
+
+SELECT p_mfgr, COUNT(*) FROM v1 GROUP BY p_mfgr;
+
+--echo #
+--echo # The two queries should return the same result as the above one
+--echo #
+
+LET $query= SELECT p_mfgr, COUNT(DISTINCT p_name) FROM lineitem l, part p
+WHERE l.l_partkey= p.p_partkey
+GROUP BY p.p_mfgr;
+
+eval $query;
+
+SET tmp_table_size=1024;
+--echo #
+--echo # merge_walk() get called, that is merging of sorted chunks of file happens
+--echo #
+eval $query;
+SET tmp_table_size = @save_tmp_table_size;
+DROP VIEW v1;
+
+--echo # The result should be 200
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+--echo #
+--echo # merge_many_buffers get called, followed by merge_walk()
+--echo #
+SET tmp_table_size=1024;
+SELECT COUNT(DISTINCT p_name) FROM lineitem l, part p;
+SET tmp_table_size = @save_tmp_table_size;
+
+CREATE VIEW v1 AS SELECT DISTINCT n_name, c_name FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey;
+
+--echo #
+--echo # The two queries should return the same result
+--echo #
+SELECT n_name, GROUP_CONCAT(c_name), COUNT(c_name) FROM v1 GROUP BY n_name;
+
+SELECT n_name, GROUP_CONCAT(DISTINCT c_name), COUNT(DISTINCT c_name)
+FROM customer, orders, nation
+WHERE o_custkey= c_custkey and c_nationkey= n_nationkey GROUP BY n_name;
+
+drop database dbt3;
