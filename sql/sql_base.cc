@@ -2038,6 +2038,7 @@ retry_share:
   if (table->part_info &&
       table->part_info->part_type == VERSIONING_PARTITION &&
       !table_list->vers_conditions.delete_history &&
+      !ot_ctx->vers_create_count &&
       table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
       table_list->mdl_request.type < MDL_EXCLUSIVE)
@@ -3208,10 +3209,17 @@ Open_table_context::recover_from_failed_open()
     case OT_DISCOVER:
     case OT_REPAIR:
     case OT_ADD_HISTORY_PARTITION:
-      if ((result= lock_table_names(m_thd, m_thd->lex->create_info,
-                                    m_failed_table, NULL,
-                                    get_timeout(), 0)))
+      result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
+                               NULL, get_timeout(), 0);
+      if (result)
+      {
+        if (m_action == OT_ADD_HISTORY_PARTITION)
+        {
+          m_thd->clear_error();
+          result= false;
+        }
         break;
+      }
 
       tdc_remove_table(m_thd, m_failed_table->db.str,
                        m_failed_table->table_name.str);
@@ -3244,15 +3252,20 @@ Open_table_context::recover_from_failed_open()
           break;
         case OT_ADD_HISTORY_PARTITION:
         {
+          result= false;
           TABLE *table= open_ltable(m_thd, m_failed_table, TL_WRITE,
                     MYSQL_OPEN_HAS_MDL_LOCK | MYSQL_OPEN_IGNORE_LOGGING_FORMAT);
-          if ((result= table == NULL))
+          if (table == NULL)
+          {
+            m_thd->clear_error();
             break;
+          }
 
           DBUG_ASSERT(vers_create_count);
           TABLE_LIST *tl= m_failed_table;
           vers_add_auto_parts(m_thd, tl, vers_create_count);
           close_tables_for_reopen(m_thd, &tl, start_of_statement_svp());
+          vers_create_count= 0;
           break;
         }
         case OT_BACKOFF_AND_RETRY:

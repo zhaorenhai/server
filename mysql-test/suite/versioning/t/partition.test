@@ -1317,8 +1317,9 @@ select * from t1;
 
 --connect con1, localhost, root
 set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
 --error ER_LOCK_WAIT_TIMEOUT
-update t1 set x= x + 1;
+update t1 set x= x + 111;
 select * from t1;
 
 # cleanup
@@ -1350,6 +1351,29 @@ rollback;
 show create table t1;
 --disconnect con1
 --connection default
+drop table t1;
+
+--echo #
+--echo # MENT-724 Locking timeout caused by auto-creation affects original DML
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+
+insert into t1 values (1);
+start transaction;
+insert into t1 values (2);
+
+--connect con1, localhost, root
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:01');
+update t1 set x= x + 122 where x = 1;
+--disconnect con1
+--connection default
+select * from t1;
+
+# cleanup
 drop table t1;
 
 --echo #

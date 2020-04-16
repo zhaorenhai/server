@@ -1816,7 +1816,8 @@ x
 1
 connect con1, localhost, root;
 set lock_wait_timeout= 1;
-update t1 set x= x + 1;
+set innodb_lock_wait_timeout= 1;
+update t1 set x= x + 111;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 select * from t1;
 x
@@ -1861,6 +1862,29 @@ t1	CREATE TABLE `t1` (
 PARTITIONS 4
 disconnect con1;
 connection default;
+drop table t1;
+#
+# MENT-724 Locking timeout caused by auto-creation affects original DML
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning engine innodb
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+start transaction;
+insert into t1 values (2);
+connect con1, localhost, root;
+set lock_wait_timeout= 1;
+set innodb_lock_wait_timeout= 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:01');
+update t1 set x= x + 122 where x = 1;
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+select * from t1;
+x
+2
+123
 drop table t1;
 #
 # End of 10.5 tests
