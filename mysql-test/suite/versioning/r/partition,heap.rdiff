@@ -1,8 +1,8 @@
---- ./mysql-test/suite/versioning/r/partition.result	2020-04-13 15:07:51.891683731 +0300
-+++ ./mysql-test/suite/versioning/r/partition,heap.reject	2020-04-13 15:08:15.355684283 +0300
-@@ -1492,134 +1492,6 @@
- affected rows: 0
- drop procedure sp;
+--- ./mysql-test/suite/versioning/r/partition.result	2020-08-28 21:58:38.197371743 +0300
++++ ./mysql-test/suite/versioning/r/partition,heap.reject	2020-08-28 21:58:38.064367542 +0300
+@@ -1685,134 +1685,6 @@
+ Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p0`) is out of INTERVAL, need more HISTORY partitions
+ drop prepare s;
  affected rows: 0
 -# Complex table
 -set timestamp= unix_timestamp('2000-01-01 00:00:00');
@@ -47,11 +47,11 @@
 -  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
 -  `ps` date NOT NULL,
 -  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
 -  PRIMARY KEY (`x`,`e`),
 -  UNIQUE KEY `u` (`u`,`e`),
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
--  PERIOD FOR `app_time` (`ps`, `pe`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
 -) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -84,11 +84,11 @@
 -  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
 -  `ps` date NOT NULL,
 -  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
 -  PRIMARY KEY (`x`,`e`),
 -  UNIQUE KEY `u` (`u`,`e`),
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
--  PERIOD FOR `app_time` (`ps`, `pe`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
 -) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -119,11 +119,11 @@
 -  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
 -  `ps` date NOT NULL,
 -  `pe` date NOT NULL,
+-  PERIOD FOR `app_time` (`ps`, `pe`),
 -  PRIMARY KEY (`x`,`e`),
 -  UNIQUE KEY `u` (`u`,`e`),
 -  KEY `three` (`i1`,`i2`,`i3`),
 -  PERIOD FOR SYSTEM_TIME (`s`, `e`),
--  PERIOD FOR `app_time` (`ps`, `pe`),
 -  CONSTRAINT `check_constr` CHECK (`u` > -1)
 -) ENGINE=DEFAULT_ENGINE AUTO_INCREMENT=10 DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
 - PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
@@ -132,6 +132,6 @@
 - PARTITION `p3` HISTORY ENGINE = DEFAULT_ENGINE,
 - PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 -affected rows: 1
- # Concurrent DML
+ # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
  set timestamp= unix_timestamp('2000-01-01 00:00:00');
- create or replace table t1 (x int) with system versioning
+ create or replace table t1 (x int primary key) with system versioning

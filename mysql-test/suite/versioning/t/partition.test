@@ -1045,6 +1045,14 @@ insert into t2 select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
+--echo # Too many partitions error
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto;
+set timestamp= unix_timestamp('2001-01-01 00:01:00');
+--error ER_TOO_MANY_PARTITIONS_ERROR
+update t1 set x= x + 1;
+
 --enable_info
 --echo # Increment from 3 to 5
 create or replace table t1 (x int) with system versioning
@@ -1093,8 +1101,9 @@ update t1 set x= x + 5;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 unlock tables;
+set timestamp= default;
 
---echo # One more LOCK TABLES case
+--echo # Couple of more LOCK TABLES cases
 create or replace table t1 (x int) with system versioning
 partition by system_time limit 1000 auto;
 lock tables t1 write;
@@ -1103,6 +1112,25 @@ update t1 set x= x + 1;
 unlock tables;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
+
+--echo # Overflow prevention under LOCK TABLES
+create or replace table t1 (x int)
+with system versioning partition by system_time
+limit 10 auto;
+
+insert into t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9);
+update t1 set x= x + 10;
+
+lock tables t1 write;
+update t1 set x= 1 where x = 11;
+update t1 set x= 2 where x = 12;
+update t1 set x= 3 where x = 13;
+unlock tables;
+
+select count(x) from t1 partition (p0);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop tables t1;
 
 --echo # Test VIEW, LOCK TABLES
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
@@ -1154,7 +1182,10 @@ set timestamp= unix_timestamp('2000-01-01 03:00:00');
 update t1, t2 set t1.x= 0 where t1.x< t2.y;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
---replace_result $default_engine DEFAULT_ENGINE
+# Multiupdate_prelocking_strategy::handle_end() is processed after table open.
+# For PS it is possible to skip unneeded auto-creation because the above happens at
+# prepare stage and auto-creation is done at execute stage.
+--replace_result $default_engine DEFAULT_ENGINE 'PARTITIONS 4' 'PARTITIONS ok' 'PARTITIONS 5' 'PARTITIONS ok'
 show create table t2;
 
 drop tables t1, t2;
@@ -1198,6 +1229,17 @@ show create table t1;
 unlock tables;
 drop procedure sp;
 
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day starts '2000-01-01 00:00:00';
+insert into t1 values (0);
+set timestamp= unix_timestamp('2001-01-01 00:00:01');
+prepare s from 'update t1 set i= i + 1';
+execute s;
+set timestamp= unix_timestamp('2001-01-02 00:00:01');
+execute s;
+drop prepare s;
+
 if (!$MTR_COMBINATION_HEAP)
 {
 --echo # Complex table
@@ -1239,6 +1281,16 @@ update t1 set x= x - 8;
 show create table t1;
 }
 --disable_info
+
+--echo # INSERT .. ON DUPLICATE KEY UPDATE (ODKU)
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int primary key) with system versioning
+partition by system_time interval 1 hour auto;
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+insert into t1 values (1) on duplicate key update x= x + 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
 
 --echo # Concurrent DML
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
@@ -1307,6 +1359,7 @@ reap;
 show create table t1;
 
 drop tables t1;
+set timestamp= default;
 
 --echo # Transaction
 create or replace table t1 (x int) with system versioning engine innodb
@@ -1375,6 +1428,7 @@ select * from t1;
 
 # cleanup
 drop table t1;
+set timestamp= default;
 
 --echo #
 --echo # End of 10.5 tests

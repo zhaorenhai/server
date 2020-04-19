@@ -2584,14 +2584,14 @@ char *generate_partition_syntax(THD *thd, partition_info *part_info,
         err+= str.append(ctime, ctime_len);
         err+= str.append('\'');
       }
-      if (vers_info->auto_inc)
+      if (vers_info->auto_hist)
         err+= str.append(STRING_WITH_LEN(" AUTO"));
     }
     else if (vers_info->limit)
     {
       err+= str.append(STRING_WITH_LEN("LIMIT "));
       err+= str.append_ulonglong(vers_info->limit);
-      if (vers_info->auto_inc)
+      if (vers_info->auto_hist)
         err+= str.append(STRING_WITH_LEN(" AUTO"));
     }
   }

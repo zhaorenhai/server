@@ -1775,11 +1775,16 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (table->part_info &&
           table->part_info->part_type == VERSIONING_PARTITION &&
           !table_list->vers_conditions.delete_history &&
+          !thd->stmt_arena->is_stmt_prepare() &&
           table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
           table_list->mdl_request.type == MDL_SHARED_WRITE)
       {
         switch (thd->lex->sql_command)
         {
+        case SQLCOM_INSERT:
+          if (thd->lex->duplicates != DUP_UPDATE)
+            break;
+        /* fall-through: */
         case SQLCOM_DELETE:
         case SQLCOM_UPDATE:
         case SQLCOM_REPLACE:
@@ -2039,12 +2044,17 @@ retry_share:
       table->part_info->part_type == VERSIONING_PARTITION &&
       !table_list->vers_conditions.delete_history &&
       !ot_ctx->vers_create_count &&
+      !thd->stmt_arena->is_stmt_prepare() &&
       table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
       table_list->mdl_request.type < MDL_EXCLUSIVE)
   {
     switch (thd->lex->sql_command)
     {
+    case SQLCOM_INSERT:
+      if (thd->lex->duplicates != DUP_UPDATE)
+        break;
+    /* fall-through: */
     case SQLCOM_LOCK_TABLES:
     case SQLCOM_DELETE:
     case SQLCOM_UPDATE:
@@ -3263,7 +3273,9 @@ Open_table_context::recover_from_failed_open()
 
           DBUG_ASSERT(vers_create_count);
           TABLE_LIST *tl= m_failed_table;
-          vers_add_auto_parts(m_thd, tl, vers_create_count);
+          result= vers_add_auto_hist_parts(m_thd, tl, vers_create_count);
+          if (!m_thd->transaction->stmt.is_empty())
+            trans_commit_stmt(m_thd);
           close_tables_for_reopen(m_thd, &tl, start_of_statement_svp());
           vers_create_count= 0;
           break;

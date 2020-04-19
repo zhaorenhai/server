@@ -40,7 +40,7 @@ struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
     limit(0),
-    auto_inc(false),
+    auto_hist(false),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -49,7 +49,7 @@ struct Vers_part_info : public Sql_alloc
   Vers_part_info(Vers_part_info &src) :
     interval(src.interval),
     limit(src.limit),
-    auto_inc(src.auto_inc),
+    auto_hist(src.auto_hist),
     now_part(NULL),
     hist_part(NULL)
   {
@@ -100,7 +100,7 @@ struct Vers_part_info : public Sql_alloc
     }
   } interval;
   ulonglong limit;
-  bool auto_inc;
+  bool auto_hist;
   partition_element *now_part;
   partition_element *hist_part;
 };
@@ -423,9 +423,9 @@ public:
   bool vers_init_info(THD *thd);
   bool vers_set_interval(THD *thd, Item *interval,
                          interval_type int_type, Item *starts,
-                         bool auto_inc, const char *table_name);
-  bool vers_set_limit(ulonglong limit, bool auto_inc, const char *table_name);
-  unsigned int vers_set_hist_part(THD* thd, bool auto_inc);
+                         bool auto_part, const char *table_name);
+  bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
+  unsigned int vers_set_hist_part(THD* thd, bool auto_part);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
@@ -444,7 +444,7 @@ public:
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);
-void vers_add_auto_parts(THD* thd, TABLE_LIST* tl, uint num_parts);
+bool vers_add_auto_hist_parts(THD* thd, TABLE_LIST* tl, uint num_parts);
 
 /* Initialize the iterator to return a single partition with given part_id */
 
