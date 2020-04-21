@@ -59,27 +59,6 @@ sub skip_combinations {
   $skip{'t/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
 
-  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
-            unless ::have_mariabackup();
-
-  $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
-            unless IS_WINDOWS || ::which("ss");
-
-  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
-            unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};
-
-  $skip{'include/have_xtrabackup.inc'} = 'Need innobackupex'
-            unless IS_WINDOWS || ::which("innobackupex");
-
-  $skip{'include/have_xtrabackup.inc'} = 'Need socat or nc'
-            unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};
-
-  $skip{'include/have_garbd.inc'} = 'Need garbd'
-            unless ::have_garbd();
-
-  $skip{'include/have_file_key_management.inc'} = 'Needs file_key_management plugin'
-            unless $ENV{FILE_KEY_MANAGEMENT_SO};
-
   # disable tests that use ipv6, if unsupported
   sub ipv6_ok() {
     use Socket;

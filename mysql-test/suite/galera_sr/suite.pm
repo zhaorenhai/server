@@ -1,4 +1,4 @@
-package My::Suite::Galera;
+package My::Suite::Galera_sr;
 
 use lib 'suite';
 use wsrep::common;
@@ -58,15 +58,10 @@ push @::global_suppressions,
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr|Query apply failed:*|,
+     qr(WSREP: Ignoring error*),
      qr(WSREP: Failed to remove page file .*),
      qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
-     qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
    );
-
-sub skip_combinations {
-  my %skip = ();
-  $skip{'include/have_mariabackup.inc'} = 'Need ss' unless `ss -V`;
-  %skip;
-}
 
 bless { };
