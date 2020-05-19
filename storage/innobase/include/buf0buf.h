@@ -117,7 +117,7 @@ struct buf_pool_info_t
 	ulint	n_pages_read;		/*!< buf_pool.n_pages_read */
 	ulint	n_pages_created;	/*!< buf_pool.n_pages_created */
 	ulint	n_pages_written;	/*!< buf_pool.n_pages_written */
-	ulint	n_page_gets;		/*!< buf_pool.n_page_gets */
+	ulint	n_page_gets;		/*!< COUNTER(N_PAGE_GETS) */
 	ulint	n_ra_pages_read_rnd;	/*!< buf_pool.n_ra_pages_read_rnd,
 					number of pages readahead */
 	ulint	n_ra_pages_read;	/*!< buf_pool.n_ra_pages_read, number
@@ -1353,12 +1353,6 @@ struct buf_buddy_free_t {
 
 /** @brief The buffer pool statistics structure. */
 struct buf_pool_stat_t{
-	ulint	n_page_gets;	/*!< number of page gets performed;
-				also successful searches through
-				the adaptive hash index are
-				counted as page gets; this field
-				is NOT protected by the buffer
-				pool mutex */
 	ulint	n_pages_read;	/*!< number read operations */
 	ulint	n_pages_written;/*!< number write operations */
 	ulint	n_pages_created;/*!< number of pages created
@@ -1926,6 +1920,7 @@ public:
 					indexed by block size */
 	buf_pool_stat_t	stat;		/*!< current statistics */
 	buf_pool_stat_t	old_stat;	/*!< old statistics */
+  size_t old_n_page_gets= 0;
 
 	/* @} */
 

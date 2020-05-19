@@ -973,8 +973,8 @@ try_again:
 
 flush:
 	/* increment the doublewrite flushed pages counter */
-	srv_stats.dblwr_pages_written.add(buf_dblwr->first_free);
-	srv_stats.dblwr_writes.inc();
+	COUNTER(DBLWR_PAGES_WRITTEN) += buf_dblwr->first_free;
+	COUNTER(DBLWR_WRITES)++;
 
 	/* Now flush the doublewrite buffer data to disk */
 	fil_flush(TRX_SYS_SPACE);
@@ -1118,8 +1118,8 @@ found:
   buf_block_arr[i]= { bpage, IORequest::SINGLE_PAGE, size };
 
   /* increment the doublewrite flushed pages counter */
-  srv_stats.dblwr_pages_written.inc();
-  srv_stats.dblwr_writes.inc();
+  COUNTER(DBLWR_PAGES_WRITTEN)++;
+  COUNTER(DBLWR_WRITES)++;
 
   mutex_exit(&mutex);
 

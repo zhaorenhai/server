@@ -852,7 +852,7 @@ not_found:
 		++flush_failures;
 	}
 
-	srv_stats.buf_pool_wait_free.inc();
+	COUNTER(BUF_POOL_WAIT_FREE)++;
 
 	n_iterations++;
 

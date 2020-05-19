@@ -1555,9 +1555,9 @@ error_exit:
 	thr->stop_no_error();
 
 	if (table->is_system_db) {
-		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
+		COUNTER(N_SYSTEM_ROWS_INSERTED)++;
 	} else {
-		srv_stats.n_rows_inserted.inc(size_t(trx->id));
+		COUNTER(N_ROWS_INSERTED)++;
 	}
 
 	/* Not protected by dict_table_stats_lock() for performance
@@ -1937,17 +1937,17 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		dict_table_n_rows_dec(prebuilt->table);
 
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_deleted.inc(size_t(trx->id));
+			COUNTER(N_SYSTEM_ROWS_DELETED)++;
 		} else {
-			srv_stats.n_rows_deleted.inc(size_t(trx->id));
+			COUNTER(N_ROWS_DELETED)++;
 		}
 
 		update_statistics = !srv_stats_include_delete_marked;
 	} else {
 		if (table->is_system_db) {
-			srv_stats.n_system_rows_updated.inc(size_t(trx->id));
+			COUNTER(N_SYSTEM_ROWS_UPDATED)++;
 		} else {
-			srv_stats.n_rows_updated.inc(size_t(trx->id));
+			COUNTER(N_ROWS_UPDATED)++;
 		}
 
 		update_statistics
@@ -2194,8 +2194,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 			goto exit;
 
 		case DB_SUCCESS:
-			srv_stats.n_rows_inserted.inc(
-				static_cast<size_t>(trx->id));
+			COUNTER(N_ROWS_INSERTED)++;
 			dict_stats_update_if_needed(table, *trx);
 			goto exit;
 		}
@@ -2282,11 +2281,11 @@ row_update_cascade_for_mysql(
 				dict_table_n_rows_dec(node->table);
 
 				stats = !srv_stats_include_delete_marked;
-				srv_stats.n_rows_deleted.inc(size_t(trx->id));
+				COUNTER(N_ROWS_DELETED)++;
 			} else {
 				stats = !(node->cmpl_info
 					  & UPD_NODE_NO_ORD_CHANGE);
-				srv_stats.n_rows_updated.inc(size_t(trx->id));
+				COUNTER(N_ROWS_UPDATED)++;
 			}
 
 			if (stats) {

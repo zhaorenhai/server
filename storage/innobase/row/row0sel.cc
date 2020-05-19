@@ -3243,8 +3243,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	*out_rec = NULL;
 	trx = thr_get_trx(thr);
 
-	srv_stats.n_sec_rec_cluster_reads.inc(
-		thd_get_thread_id(trx->mysql_thd));
+	COUNTER(N_SEC_REC_CLUSTER_READS)++;
 
 	row_build_row_ref_in_tuple(prebuilt->clust_ref, rec,
 				   sec_index, *offsets);
@@ -4155,7 +4154,7 @@ bool row_search_with_covering_prefix(
 		ut_a(templ->rec_field_no != ULINT_UNDEFINED);
 	}
 
-	srv_stats.n_sec_rec_cluster_reads_avoided.inc();
+	COUNTER(N_SEC_REC_CLUSTER_READS_AVOIDED)++;
 	return true;
 }
 

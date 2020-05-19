@@ -284,8 +284,8 @@ lock_wait_suspend_thread(
 	ulonglong start_time = 0;
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		srv_stats.n_lock_wait_count.inc();
-		srv_stats.n_lock_wait_current_count++;
+		COUNTER(N_LOCK_WAIT_COUNT)++;
+		COUNTER(N_LOCK_WAIT_CURRENT_COUNT)++;
 		start_time = my_interval_timer();
 	}
 
@@ -376,9 +376,9 @@ lock_wait_suspend_thread(
 		const ulonglong finish_time = my_interval_timer();
 
 		if (finish_time >= start_time) {
-			const ulint diff_time = static_cast<ulint>
+			const auto diff_time = static_cast<size_t>
 				((finish_time - start_time) / 1000);
-			srv_stats.n_lock_wait_time.add(diff_time);
+			COUNTER(N_LOCK_WAIT_TIME) += diff_time;
 			/* Only update the variable if we successfully
 			retrieved the start and finish times. See Bug#36819. */
 			if (diff_time > lock_sys.n_lock_max_wait_time) {
@@ -388,7 +388,7 @@ lock_wait_suspend_thread(
 			thd_storage_lock_wait(trx->mysql_thd, diff_time);
 		}
 
-		srv_stats.n_lock_wait_current_count--;
+		COUNTER(N_LOCK_WAIT_CURRENT_COUNT)--;
 
 		DBUG_EXECUTE_IF("lock_instrument_slow_query_log",
 			os_thread_sleep(1000););
