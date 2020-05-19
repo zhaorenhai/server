@@ -1125,7 +1125,7 @@ got_no_latch:
 		}
 		mtr->memo_push(block, fix_type);
 
-		buf_pool.stat.n_page_gets++;
+		COUNTER(N_PAGE_GETS)++;
 
 		rw_lock_s_unlock(&part->latch);
 
@@ -1215,7 +1215,7 @@ fail_and_release_page:
 #endif
 	/* Increment the page get statistics though we did not really
 	fix the page: for user info only */
-	++buf_pool.stat.n_page_gets;
+	++COUNTER(N_PAGE_GETS);
 
 	if (!ahi_latch) {
 		buf_page_make_young_if_needed(&block->page);

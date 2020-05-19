@@ -71,5 +71,5 @@ buf_flush_note_modification(
 		ut_ad(oldest_modification <= start_lsn);
 	}
 
-	srv_stats.buf_pool_write_requests.inc();
+	COUNTER(BUF_POOL_WRITE_REQUESTS)++;
 }

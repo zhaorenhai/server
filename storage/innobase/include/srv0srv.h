@@ -51,8 +51,52 @@ Created 10/10/1995 Heikki Tuuri
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
+#include "distributable_counter.h"
 #include <tpool.h>
 #include <memory>
+
+enum class counters_t : size_t
+{
+  N_ROWS_READ,
+  N_SYSTEM_ROWS_READ,
+  N_ROWS_UPDATED,
+  N_SYSTEM_ROWS_UPDATED,
+  N_ROWS_DELETED,
+  N_SYSTEM_ROWS_DELETED,
+  N_ROWS_INSERTED,
+  N_SYSTEM_ROWS_INSERTED,
+  N_PAGE_GETS,
+  LOG_WRITES,
+  OS_LOG_WRITTEN, // Amount of data written to the log files in bytes
+  LOG_WRITE_REQUESTS,
+  OS_LOG_PENDING_WRITES,
+  LOG_PADDED, // Amount of data padded for log write ahead
+  LOG_WAITS,  // We increase this counter, when we don't have enough space in
+              // the log buffer and have to flush it
+  N_LOCK_WAIT_TIME,          // Wait time of database locks
+  N_LOCK_WAIT_COUNT,         // Number of database lock waits
+  N_LOCK_WAIT_CURRENT_COUNT, // Number of threads currently waiting on database
+                             // locks
+  N_SEC_REC_CLUSTER_READS, // Number of times secondary index lookup triggered
+                           // cluster lookup
+  N_SEC_REC_CLUSTER_READS_AVOIDED, // Number of times prefix optimization
+                                   // avoided triggering cluster lookup
+  DATA_READ,
+  DATA_WRITTEN,
+  BUF_POOL_WRITE_REQUESTS, // Store the number of write requests issued
+  BUF_POOL_WAIT_FREE, // Store the number of times when we had to wait for a
+                      // free page in the buffer pool. It happens when the
+                      // buffer pool is full and we need to make a flush, in
+                      // order to be able to read or create a page.
+  BUF_POOL_FLUSHED, // Count the number of pages that were written from buffer
+                    // pool to the disk
+  BUF_POOL_READS,   // Number of buffer pool reads that led to the reading of a
+                    // disk page
+  DBLWR_WRITES, // Count the number of times the doublewrite buffer was flushed
+  DBLWR_PAGES_WRITTEN, // Store the number of pages that have been flushed to
+                       // the doublewrite buffer
+  SIZE,
+};
 
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
@@ -62,55 +106,9 @@ struct srv_stats_t
 	typedef simple_counter<ulint> ulint_ctr_1_t;
 	typedef simple_counter<int64_t> int64_ctr_1_t;
 
-	/** Count the amount of data written in total (in bytes) */
-	ulint_ctr_1_t		data_written;
-
-	/** Number of the log write requests done */
-	ulint_ctr_1_t		log_write_requests;
-
-	/** Number of physical writes to the log performed */
-	ulint_ctr_1_t		log_writes;
-
-	/** Amount of data padded for log write ahead */
-	ulint_ctr_1_t		log_padded;
-
-	/** Amount of data written to the log files in bytes */
-	lsn_ctr_1_t		os_log_written;
-
-	/** Number of writes being done to the log files.
-	Protected by log_sys.write_mutex. */
-	ulint_ctr_1_t		os_log_pending_writes;
-
-	/** We increase this counter, when we don't have enough
-	space in the log buffer and have to flush it */
-	ulint_ctr_1_t		log_waits;
-
-	/** Count the number of times the doublewrite buffer was flushed */
-	ulint_ctr_1_t		dblwr_writes;
-
-	/** Store the number of pages that have been flushed to the
-	doublewrite buffer */
-	ulint_ctr_1_t		dblwr_pages_written;
-
 #if defined(LINUX_NATIVE_AIO)
 	ulint_ctr_1_t buffered_aio_submitted;
 #endif
-
-	/** Store the number of write requests issued */
-	ulint_ctr_1_t		buf_pool_write_requests;
-
-	/** Store the number of times when we had to wait for a free page
-	in the buffer pool. It happens when the buffer pool is full and we
-	need to make a flush, in order to be able to read or create a page. */
-	ulint_ctr_1_t		buf_pool_wait_free;
-
-	/** Count the number of pages that were written from buffer
-	pool to the disk */
-	ulint_ctr_1_t		buf_pool_flushed;
-
-	/** Number of buffer pool reads that led to the reading of
-	a disk page */
-	ulint_ctr_1_t		buf_pool_reads;
 
 	/** Number of bytes saved by page compression */
 	ulint_ctr_64_t          page_compression_saved;
@@ -138,49 +136,6 @@ struct srv_stats_t
 	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
 	/* Number of row log blocks decrypted */
 	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
-
-	/** Number of data read in total (in bytes) */
-	ulint_ctr_1_t		data_read;
-
-	/** Wait time of database locks */
-	int64_ctr_1_t		n_lock_wait_time;
-
-	/** Number of database lock waits */
-	ulint_ctr_1_t		n_lock_wait_count;
-
-	/** Number of threads currently waiting on database locks */
-	MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<ulint>
-				n_lock_wait_current_count;
-
-	/** Number of rows read. */
-	ulint_ctr_64_t		n_rows_read;
-
-	/** Number of rows updated */
-	ulint_ctr_64_t		n_rows_updated;
-
-	/** Number of rows deleted */
-	ulint_ctr_64_t		n_rows_deleted;
-
-	/** Number of rows inserted */
-	ulint_ctr_64_t		n_rows_inserted;
-
-	/** Number of system rows read. */
-	ulint_ctr_64_t		n_system_rows_read;
-
-	/** Number of system rows updated */
-	ulint_ctr_64_t		n_system_rows_updated;
-
-	/** Number of system rows deleted */
-	ulint_ctr_64_t		n_system_rows_deleted;
-
-	/** Number of system rows inserted */
-	ulint_ctr_64_t		n_system_rows_inserted;
-
-	/** Number of times secondary index lookup triggered cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads;
-
-	/** Number of times prefix optimization avoided triggering cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads_avoided;
 
 	/** Number of encryption_get_latest_key_version calls */
 	ulint_ctr_64_t		n_key_requests;
@@ -514,6 +469,16 @@ extern struct export_var_t export_vars;
 /** Global counters */
 extern srv_stats_t	srv_stats;
 
+/** Global singleton counters */
+extern singleton_counter_array<size_t,
+                               static_cast<size_t>(counters_t::SIZE)>
+    counter_array;
+
+#define COUNTER(IDX) counter_array[static_cast<size_t>(counters_t::IDX)]
+
+#define COUNTER_LOAD(IDX)                                                     \
+  counter_array.load(static_cast<size_t>(counters_t::IDX))
+
 /** Simulate compression failures. */
 extern uint srv_simulate_comp_failures;
 
@@ -784,7 +749,7 @@ struct export_var_t{
 	ulint innodb_buffer_pool_pages_made_not_young;
 	ulint innodb_buffer_pool_pages_made_young;
 	ulint innodb_buffer_pool_pages_old;
-	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool.stat.n_page_gets */
+	ulint innodb_buffer_pool_read_requests;	/*!< COUNTER(N_PAGE_GETS) */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */
 	ulint innodb_buffer_pool_pages_flushed;	/*!< srv_buf_pool_flushed */
