@@ -3025,7 +3025,6 @@ public:
   void close_active_vio();
 #endif
   void awake(killed_state state_to_set);
- 
   /** Disconnect the associated communication endpoint. */
   void disconnect();
 
@@ -3539,6 +3538,14 @@ public:
       killed_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
+
+#ifdef WITH_WSREP
+    mysql_mutex_assert_not_owner(&LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_thd_data);
+    wsrep_killed= false;
+    mysql_mutex_unlock(&LOCK_thd_data);
+#endif /* WITH_WSREP */
+
   }
   inline void reset_kill_query()
   {
@@ -4152,6 +4159,7 @@ public:
   */
   bool                      wsrep_ignore_table;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  bool                      wsrep_killed; // protected by LOCK_thd_data
   ulong                     wsrep_affected_rows;
   bool                      wsrep_replicate_GTID;
   bool                      wsrep_skip_wsrep_GTID;

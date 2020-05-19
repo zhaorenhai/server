@@ -8324,8 +8324,24 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF(tmp, false))
     {
-      tmp->awake(kill_signal);
-      error=0;
+#ifdef WITH_WSREP
+      DEBUG_SYNC(thd, "before_awake_no_mutex");
+
+      // Note that find_thread_by_id will lock tmp->LOCK_thd_data
+      if (wsrep_thd_set_wsrep_killed(tmp))
+      {
+	WSREP_DEBUG("Kill transaction thread %llu skipped due to wsrep_killed", tmp->thread_id);
+	error= 0;
+      }
+      else
+#endif /* WITH_WSREP */
+      {
+        WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_killed %d by signal %d",
+                    thd->thread_id, id, tmp->wsrep_killed, kill_signal);
+        tmp->awake(kill_signal);
+        WSREP_DEBUG("victim: %llu taken care of", id);
+        error= 0;
+      }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :

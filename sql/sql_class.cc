@@ -798,7 +798,8 @@ THD::THD(bool is_wsrep_applier)
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
    wsrep_apply_format(0),
-   wsrep_ignore_table(false)
+   wsrep_ignore_table(false),
+   wsrep_killed(false)
 #endif
 {
   ulong tmp;
@@ -1349,6 +1350,7 @@ void THD::init(void)
   wsrep_affected_rows     = 0;
   wsrep_replicate_GTID    = false;
   wsrep_skip_wsrep_GTID   = false;
+  wsrep_killed            = false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1984,7 +1986,6 @@ int THD::killed_errno()
   }
   DBUG_RETURN(0);                               // Keep compiler happy
 }
-
 
 /*
   Remember the location of thread info, the structure needed for

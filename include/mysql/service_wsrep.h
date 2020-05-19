@@ -99,7 +99,7 @@ extern struct wsrep_service_st {
   enum wsrep_conflict_state   (*wsrep_thd_get_conflict_state_func)(MYSQL_THD);
   my_bool                     (*wsrep_thd_is_BF_func)(MYSQL_THD , my_bool);
   my_bool                     (*wsrep_thd_is_wsrep_func)(MYSQL_THD thd);
-  char *                      (*wsrep_thd_query_func)(THD *thd);
+  const char *                (*wsrep_thd_query_func)(THD *thd);
   enum wsrep_query_state      (*wsrep_thd_query_state_func)(THD *thd);
   const char *                (*wsrep_thd_query_state_str_func)(THD *thd);
   int                         (*wsrep_thd_retry_counter_func)(THD *thd);
@@ -112,6 +112,7 @@ extern struct wsrep_service_st {
   int                         (*wsrep_trx_order_before_func)(MYSQL_THD, MYSQL_THD);
   void                        (*wsrep_unlock_rollback_func)();
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
+  bool                        (*wsrep_thd_set_wsrep_killed_func)(MYSQL_THD thd);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -163,6 +164,7 @@ extern struct wsrep_service_st {
 #define wsrep_drupal_282555_workaround get_wsrep_drupal_282555_workaround()
 #define wsrep_recovery get_wsrep_recovery()
 #define wsrep_protocol_version get_wsrep_protocol_version()
+#define wsrep_thd_set_wsrep_killed(T) wsrep_service->wsrep_thd_set_wsrep_killed_func(T)
 
 #else
 
@@ -176,7 +178,7 @@ extern long wsrep_protocol_version;
 
 bool wsrep_consistency_check(THD *thd);
 bool wsrep_prepare_key(const unsigned char* cache_key, size_t cache_key_len, const unsigned char* row_id, size_t row_id_len, struct wsrep_buf* key, size_t* key_len);
-char *wsrep_thd_query(THD *thd);
+const char *wsrep_thd_query(THD *thd);
 const char *wsrep_thd_conflict_state_str(THD *thd);
 const char *wsrep_thd_exec_mode_str(THD *thd);
 const char *wsrep_thd_query_state_str(THD *thd);
@@ -214,8 +216,10 @@ void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state);
 bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_unlock_rollback();
 void wsrep_set_data_home_dir(const char *data_dir);
+bool wsrep_thd_set_wsrep_killed(MYSQL_THD thd);
 
 #endif
+/* set wsrep_killed flag for the target THD */
 
 #ifdef __cplusplus
 }

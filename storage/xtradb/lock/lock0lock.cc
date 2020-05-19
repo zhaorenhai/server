@@ -1820,7 +1820,7 @@ wsrep_kill_victim(
 
 			lock->trx->abort_type = TRX_WSREP_ABORT;
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-				(const trx_t*) trx, lock->trx, TRUE);
+						    lock->trx, true);
 			lock->trx->abort_type = TRX_SERVER_ABORT;
 		}
 	}

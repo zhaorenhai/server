@@ -2601,12 +2601,14 @@ wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 
 void wsrep_thd_LOCK(THD *thd)
 {
+  mysql_mutex_assert_not_owner(&thd->LOCK_thd_data);
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
 
 void wsrep_thd_UNLOCK(THD *thd)
 {
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
@@ -2634,9 +2636,9 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 
 
-char *wsrep_thd_query(THD *thd)
+const char *wsrep_thd_query(THD *thd)
 {
-  return (thd) ? thd->query() : NULL;
+  return (thd) ? thd->query() : "NULL";
 }
 
 
@@ -2654,11 +2656,10 @@ extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id)
 
 extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 {
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
   if (signal)
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake(KILL_QUERY);
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   else
   {
@@ -2666,6 +2667,8 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
     mysql_cond_broadcast(&COND_wsrep_replaying);
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
   }
+
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -2929,4 +2932,15 @@ bool wsrep_node_is_donor()
 bool wsrep_node_is_synced()
 {
   return (WSREP_ON) ? (wsrep_config_state.get_status() == 4) : false;
+}
+
+bool wsrep_thd_set_wsrep_killed(THD *thd)
+{
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
+  if (thd->wsrep_killed)
+  {
+    return true;
+  }
+  thd->wsrep_killed= true;
+  return false;
 }

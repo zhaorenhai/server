@@ -1,6 +1,7 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
  
+--connection node_1
 CREATE TABLE t1 ENGINE=InnoDB select 1 as a, 1 as b union select 2, 2;
 ALTER TABLE t1 add primary key(a);
  
