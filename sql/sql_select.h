@@ -184,6 +184,17 @@ typedef struct st_table_ref
 } TABLE_REF;
 
 
+typedef struct same_field
+{
+  Field *field;
+  JOIN *join;
+  /*
+    TRUE:  Field is present in a multiple equlity
+    FALSE: Otherwise
+  */
+  bool present_in_equalities;
+}SAME_FIELD;
+
 /*
   The structs which holds the join connections and join states
 */
@@ -1790,6 +1801,10 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+
+  bool all_selectivity_accounted_for_join_cardinality();
+  bool is_present_in_multiple_equalities(Field *field);
+
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER

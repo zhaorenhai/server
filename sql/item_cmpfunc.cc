@@ -2108,6 +2108,13 @@ bool Item_func_between::count_sargable_conds(void *arg)
   return 0;
 }
 
+bool Item_func_between::is_item_selectivity_covered(void *arg)
+{
+  if (n_selectivity_estimates)
+    return false;
+  return true;
+}
+
 
 void Item_func_between::fix_after_pullout(st_select_lex *new_parent,
                                           Item **ref, bool merge)
@@ -4291,6 +4298,14 @@ bool Item_func_in::count_sargable_conds(void *arg)
 }
 
 
+bool Item_func_in::is_item_selectivity_covered(void *arg)
+{
+  if (n_selectivity_estimates)
+    return false;
+  return true;
+}
+
+
 bool Item_func_in::list_contains_null()
 {
   Item **arg,**arg_end;
@@ -5487,6 +5502,14 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 }
 
 
+bool Item_func_null_predicate::is_item_selectivity_covered(void *arg)
+{
+  if (n_selectivity_estimates)
+    return false;
+  return true;
+}
+
+
 longlong Item_func_isnull::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5567,6 +5590,15 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
   ((SELECT_LEX*) arg)->cond_count++;
   return 0;
 }
+
+
+bool Item_bool_func2::is_item_selectivity_covered(void *arg)
+{
+  if (n_selectivity_estimates)
+    return false;
+  return true;
+}
+
 
 void Item_func_like::print(String *str, enum_query_type query_type)
 {
@@ -5664,9 +5696,16 @@ SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   param->thd->mem_root= param->old_root;
   bool sargable_pattern= with_sargable_pattern();
   param->thd->mem_root= tmp_root;
-  return sargable_pattern ?
-    Item_bool_func2::get_mm_tree(param, cond_ptr) :
-    Item_func::get_mm_tree(param, cond_ptr);
+  SEL_TREE *tree;
+  tree= sargable_pattern ?
+        Item_bool_func2::get_mm_tree(param, cond_ptr) :
+        Item_func::get_mm_tree(param, cond_ptr);
+
+  if (sel_tree_non_empty(tree))
+    n_selectivity_estimates++;
+
+  return tree;
+
 }
 
 
@@ -7108,6 +7147,24 @@ bool Item_equal::count_sargable_conds(void *arg)
 }
 
 
+bool Item_equal::is_item_selectivity_covered(void *arg)
+{
+  /*
+    For equality conditions like tbl1.col = tbl2.col
+
+    We would have an Item_equal(tbl1.col, tbl2.col)
+    (1) If EITS is available then there is no issue,
+        number of distinct values is available
+    (2) If EITS is not available then the col should be the
+        first component of an index.
+  */
+  if (is_covered_by_keys())       // (1)
+    return false;
+
+  return !is_covered_by_eits();    // (2)
+}
+
+
 /**
   @brief
   Evaluate multiple equality
@@ -7336,6 +7393,53 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
   // Shouldn't get here.
   DBUG_ASSERT(0);
   return NULL;
+}
+
+
+/*
+  @brief Check if a multiple equality is covered by keys
+
+  @details
+    Iterate over all the fields of the multiple equality and check if the
+    field is covered by the first component of an index
+
+  @retval
+    TRUE   all fields are covered by first component of keys
+    FALSE  otherwise
+*/
+
+bool Item_equal::is_covered_by_keys()
+{
+  Item_equal_fields_iterator it(*this);
+  while (it++)
+  {
+    if (!(it.get_curr_field()->is_covered_by_keys()))
+      return false;
+  }
+  return true;
+}
+
+
+/*
+  @brief Check if a multiple equality is covered by EITS
+
+  @details
+    Iterate over all the fields of the multiple equality and check if EITS
+    are available for all the fields in the multiple equality.
+  @retval
+    TRUE   all fields have estimates from EITS
+    FALSE  otherwise
+*/
+
+bool Item_equal::is_covered_by_eits()
+{
+  Item_equal_fields_iterator it(*this);
+  while (it++)
+  {
+    if (!(it.get_curr_field()->is_covered_by_eits()))
+      return false;
+  }
+  return true;
 }
 
 

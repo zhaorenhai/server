@@ -8289,6 +8289,11 @@ choose_plan(JOIN *join, table_map join_tables)
             jtab_sort_func, (void*)join->emb_sjm_nest);
 
   Json_writer_object wrapper(thd);
+
+  if (join->conds)
+    wrapper.add("cardinality_accurate",
+                join->all_selectivity_accounted_for_join_cardinality());
+
   Json_writer_array trace_plan(thd,"considered_execution_plans");
 
   if (!join->emb_sjm_nest)
@@ -29310,6 +29315,106 @@ void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
       }
     }
   }
+}
+
+
+/*
+  @brief Check if selectivity is accounted for all parts of the WHERE condition
+
+  @detail
+
+    Lets take a generic example with OR-AND conjuncts WHERE clause is defined as:
+
+      (COND1 AND COND2) OR (COND3 AND (COND4 OR COND5))
+
+     and each CONDx can be an OR-AND conjunct itself.
+
+    AND CONJUNCT:
+      For an AND item at the top level, we need to walk over all the top level
+      conjuncts and call walk individually on them.
+      This is done in such a way because for an AND conjunct at the top level
+      we may have accurate selectivity, even if the predicate belongs to a
+      different column.
+
+        Eg: t1.a > 10 and t2.a < 5
+
+        For this AND conjunct we will have accurate selectivities.
+        For AND conjuncts (not at the top level), the entire conjunct needs
+        to be resolved to one column and if the statistics are available
+        for that column then the estimate of join cardinality will be accurate.
+
+        Eg: t1.a = t2.a AND ( (t1.a > 5 AND t2.a < 10) OR t1.a <= 0)
+
+    OR conjuncts
+      For an OR item at the top level, we need to make sure that all the columns
+      inside the OR conjunct need to belong to one column directly or
+      indirectly(that is referred through equalities).
+      This needs to happen for an OR conjunct even if it is not at the
+      top level.
+
+        Eg: t1.a=t2.b and (t2.b > 5 or t1.a < 0);
+
+    SINGLE PREDICATE AT TOP LEVEL
+
+      Eg:
+        t1.a= t2.a
+        For this case we need to make sure we know number of distinct values
+        for t1.a and t2.a
+
+        t1.a > 5 : sargable predicate, get the estimate from the range
+                   optimizer
+
+    In the end for all fields we may have selectivity from an index or
+    from EITS.
+*/
+bool JOIN::all_selectivity_accounted_for_join_cardinality()
+{
+  if (!conds)
+    return true;
+
+  if (conds->type() == Item::COND_ITEM &&
+      ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
+  {
+    List_iterator<Item> li(*((Item_cond*) conds)->argument_list());
+    Item *item;
+    while ((item= li++))
+    {
+      SAME_FIELD arg= {NULL, this, FALSE};
+      if (item->walk(&Item::is_item_selectivity_covered, 0, &arg))
+        return false;
+    }
+  }
+  else
+  {
+    SAME_FIELD arg= {NULL, this, FALSE};
+    return !conds->walk(&Item::is_item_selectivity_covered, 0, &arg);
+  }
+
+  return true;
+}
+
+
+/*
+  @brief Check if a field is present in multiple equalities
+
+  @retval
+    TRUE    Field found in multiple equalities
+    FALSE   OTHERWISE
+*/
+
+bool JOIN::is_present_in_multiple_equalities(Field *field)
+{
+  if (!cond_equal || !cond_equal->current_level.elements)
+    return false;
+
+  Item_equal *item_equal;
+  List_iterator_fast<Item_equal> it(cond_equal->current_level);
+  while ((item_equal= it++))
+  {
+    if (item_equal->contains(field))
+      return true;
+  }
+  return false;
 }
 
 
