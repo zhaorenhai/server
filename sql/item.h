@@ -742,6 +742,11 @@ class Item: public Value_source,
   static void *operator new(size_t size);
 
 public:
+  /*
+     >= 1   Accurate estimates for selectivity of the item are present
+     =  0   Otherwise
+  */
+  uint n_selectivity_estimates;
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *ptr,size_t size) { TRASH_FREE(ptr, size); }
@@ -1923,7 +1928,17 @@ public:
   virtual bool count_sargable_conds(void *arg) { return 0; }
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
+
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+
+  /*
+    @brief Check if selectivity of an item is covered by statistics
+
+    @retval
+      FALSE  :  SUCCESS
+      TRUE   :  OTHERWISE
+  */
+  virtual bool is_item_selectivity_covered(void *arg) { return FALSE; }
   bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
@@ -3521,6 +3536,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg);
+  bool is_item_selectivity_covered(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;

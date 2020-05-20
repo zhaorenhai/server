@@ -402,6 +402,7 @@ int Item::save_str_value_in_field(Field *field, String *result)
 
 
 Item::Item(THD *thd):
+  n_selectivity_estimates(0),
   is_expensive_cache(-1), rsize(0), name(null_clex_str), orig_name(0),
   common_flags(IS_AUTO_GENERATED_NAME)
 {
@@ -451,6 +452,7 @@ const TABLE_SHARE *Item::field_table_or_null()
 Item::Item(THD *thd, Item *item):
   Type_all_attributes(*item),
   join_tab_idx(item->join_tab_idx),
+  n_selectivity_estimates(0),
   is_expensive_cache(-1),
   rsize(0),
   str_value(item->str_value),
@@ -9130,6 +9132,64 @@ bool
 Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 {
   return find_matching_field_pair(this, sel->grouping_tmp_fields) != NULL;
+}
+
+
+/*
+  @brief Checks if a formula of a condition contains the same column
+
+  @details
+    In the function we try to check if a formula of a condition depends
+    (directly or indirectly through equalities inferred from the
+    conjuncted multiple equalities) only on one column.
+
+    Eg:
+      WHER clause is:
+         t1.a=t2.b and (t1.a > 5 or t2.b < 1);
+
+      the predicate (t1.a > 5 or t2.b < 1) can be resolved with the help of
+      equalities to conclude that it depends on one column.
+
+    This is used mostly for OR conjuncts where we need to make sure
+    that the entire OR conjunct contains only one column, so that we may
+    get accurate estimates.
+
+  @retval
+    TRUE   : the formula does not depend on one column
+    FALSE  : OTHERWISE
+
+*/
+bool Item_field::is_item_selectivity_covered(void *arg)
+{
+  SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
+  JOIN *join= same_field_arg->join;
+
+  /*
+    The same_field_arg is passed as a parameter because when we start walking over
+    the condition tree we don't know which column the predicate will be
+    dependent on, so for the first leaf of the condition tree where we find
+    the Item_field, we set the SAME_FIELD::field to the field of the item
+    and then compare the rest of the predicate with this field
+    (directly or indirectly) for the remaining of the conditional tree
+    traversal.
+  */
+
+  if (same_field_arg->field == NULL)
+  {
+    same_field_arg->field= field;
+    same_field_arg->present_in_equalities=
+                           join->is_present_in_multiple_equalities(field);
+    return false;
+  }
+
+  /* Found the same field while traversing the condition tree */
+  if (same_field_arg->field == field)
+    return false;
+
+  if (!same_field_arg->present_in_equalities)
+    return true;
+
+  return !join->is_present_in_multiple_equalities(field);
 }
 
 

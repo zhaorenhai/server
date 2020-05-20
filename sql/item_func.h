@@ -450,6 +450,7 @@ public:
     :Item_func(thd, item), Type_handler_hybrid_field_type(item) { }
   const Type_handler *type_handler() const
   { return Type_handler_hybrid_field_type::type_handler(); }
+  bool is_item_selectivity_covered(void *arg) { return TRUE; }
 };
 
 
