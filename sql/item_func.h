@@ -1093,6 +1093,7 @@ public:
   {}
   longlong val_int();
   bool fix_length_and_dec();
+  bool is_field_read_bitmap_set(Item *item);
   const Type_handler *type_handler() const { return &type_handler_slong; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_hash>(thd, this); }
