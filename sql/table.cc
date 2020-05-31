@@ -4229,6 +4229,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   cond_selectivity_sampling_explain= NULL;
   quick_condition_rows=0;
   initialize_quick_structures();
+  histograms_are_read= FALSE;
 #ifdef HAVE_REPLICATION
   /* used in RBR Triggers */
   master_had_triggers= 0;

@@ -3091,7 +3091,8 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
         return TRUE;
       if (table_share->stats_cb.stats_is_read)
         tl->table->stats_is_read= TRUE;
-      if (table_share->stats_cb.histograms_are_read)
+      if (table_share->stats_cb.histograms_are_read &&
+          thd->variables.optimizer_use_condition_selectivity > 3)
         tl->table->histograms_are_read= TRUE;
     } 
   }
@@ -3282,7 +3283,8 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
         (void) read_histograms_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.histograms_are_read= TRUE;
       }
-      if (table_share->stats_cb.histograms_are_read)
+      if (table_share->stats_cb.histograms_are_read &&
+          thd->variables.optimizer_use_condition_selectivity > 3)
         tl->table->histograms_are_read= TRUE;
     }
   }  
@@ -3857,7 +3859,7 @@ double get_column_range_cardinality(Field *field,
           col_stats->min_max_values_are_provided())
       {
         Histogram *hist= &col_stats->histogram;
-        if (hist->is_available())
+        if (table->histograms_are_read && hist->is_available())
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
                                  field->key_length());
@@ -3901,10 +3903,10 @@ double get_column_range_cardinality(Field *field,
         max_mp_pos= 1.0;
 
       Histogram *hist= &col_stats->histogram;
-      if (!hist->is_available())
-        sel= (max_mp_pos - min_mp_pos);
-      else
+      if (table->histograms_are_read && hist->is_available())
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
+      else
+        sel= (max_mp_pos - min_mp_pos);
       res= col_non_nulls * sel;
       set_if_bigger(res, col_stats->get_avg_frequency());
     }
