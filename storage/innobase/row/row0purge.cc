@@ -897,6 +897,7 @@ row_purge_parse_undo_rec(
 	switch (type) {
 	case TRX_UNDO_RENAME_TABLE:
 		return false;
+	case TRX_UNDO_UNEMPTY:
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		/* These records do not store any transaction identifier.
@@ -987,6 +988,9 @@ err_exit:
 	if (type == TRX_UNDO_INSERT_METADATA) {
 		node->ref = &trx_undo_metadata;
 		return(true);
+	} else if (type == TRX_UNDO_UNEMPTY) {
+		node->ref = nullptr;
+		return true;
 	}
 
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),

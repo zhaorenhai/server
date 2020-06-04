@@ -393,6 +393,15 @@ trx_undo_page_report_insert(
 	*ptr++ = TRX_UNDO_INSERT_REC;
 	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
 	ptr += mach_u64_write_much_compressed(ptr, index->table->id);
+
+	/* Table is in bulk operation */
+	if (index->table->bulk_trx_id == trx->id
+	    && !index->table->is_temporary()) {
+		undo_block->frame[first_free + 2] = TRX_UNDO_UNEMPTY;
+		index->table->bulk_trx_id = trx->id;
+		goto done;
+	}
+
 	/*----------------------------------------*/
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
@@ -470,7 +479,7 @@ trx_undo_rec_get_pars(
 	type_cmpl &= ~TRX_UNDO_UPD_EXTERN;
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
 	ut_ad(*type >= TRX_UNDO_RENAME_TABLE);
-	ut_ad(*type <= TRX_UNDO_DEL_MARK_REC);
+	ut_ad(*type <= TRX_UNDO_UNEMPTY);
 	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
 
 	*undo_no = mach_read_next_much_compressed(&ptr);

@@ -1787,10 +1787,10 @@ fseg_create(
 			      FIL_PAGE_TYPE_SYS);
 	}
 
-	mtr->write<2>(*block, byte_offset + FSEG_HDR_OFFSET
+	mtr->write<2,mtr_t::MAYBE_NOP>(*block, byte_offset + FSEG_HDR_OFFSET
 		      + block->frame, page_offset(inode));
 
-	mtr->write<4>(*block, byte_offset + FSEG_HDR_PAGE_NO
+	mtr->write<4,mtr_t::MAYBE_NOP>(*block, byte_offset + FSEG_HDR_PAGE_NO
 		      + block->frame, iblock->page.id.page_no());
 
 	mtr->write<4,mtr_t::MAYBE_NOP>(*block, byte_offset + FSEG_HDR_SPACE

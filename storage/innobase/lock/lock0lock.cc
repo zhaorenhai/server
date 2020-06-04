@@ -4283,6 +4283,9 @@ void lock_release(trx_t* trx)
 				all currently active transactions. */
 
 				table->query_cache_inv_trx_id = max_trx_id;
+			} else if (lock_get_mode(lock) == LOCK_X
+				   && table->bulk_trx_id == trx->id) {
+				table->bulk_trx_id = 0;
 			}
 
 			lock_table_dequeue(lock);

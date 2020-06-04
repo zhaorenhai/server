@@ -5882,6 +5882,8 @@ ha_innobase::open(const char* name, int, uint)
 		}
 	}
 
+	ib_table->assign_stat_n_rows();
+
 	m_prebuilt = row_create_prebuilt(ib_table, table->s->reclength);
 
 	m_prebuilt->default_rec = table->s->default_values;
@@ -7664,6 +7666,11 @@ ha_innobase::write_row(
 	DBUG_ENTER("ha_innobase::write_row");
 
 	trx_t*		trx = thd_to_trx(m_user_thd);
+
+	if (!dict_table_get_n_rows(m_prebuilt->table)) {
+		// bulk index code
+		m_prebuilt->table->bulk_trx_id = trx->id;
+	}
 
 	/* Validation checks before we commence write_row operation. */
 	if (high_level_read_only) {
@@ -15947,6 +15954,19 @@ ha_innobase::external_lock(
 		procedure call (SQLCOM_CALL). */
 
 		if (m_prebuilt->select_lock_type != LOCK_NONE) {
+
+			if (!dict_table_get_n_rows(m_prebuilt->table)
+			    && (thd_sql_command(thd) == SQLCOM_INSERT
+			        || thd_sql_command(thd)
+					== SQLCOM_INSERT_SELECT)) {
+				dberr_t	error = row_lock_table(m_prebuilt);
+
+				if (error != DB_SUCCESS) {
+					DBUG_RETURN(
+						convert_error_code_to_mysql(
+							error, 0, thd));
+				}
+			}
 
 			if (thd_sql_command(thd) == SQLCOM_LOCK_TABLES
 			    && THDVAR(thd, table_locks)

@@ -410,7 +410,6 @@ page_create_empty(
 	    && !index->table->is_temporary()
 	    && page_is_leaf(block->frame)) {
 		max_trx_id = page_get_max_trx_id(block->frame);
-		ut_ad(max_trx_id);
 	} else if (block->page.id.page_no() == index->page) {
 		/* Preserve PAGE_ROOT_AUTO_INC. */
 		max_trx_id = page_get_max_trx_id(block->frame);

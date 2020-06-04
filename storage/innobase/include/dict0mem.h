@@ -1936,6 +1936,11 @@ struct dict_table_t {
 			char (&tbl_name)[NAME_LEN + 1],
 			size_t *db_name_len, size_t *tbl_name_len) const;
 
+	/** Assign n_stat_rows in dict_table_t */
+	void assign_stat_n_rows();
+
+	/** Empty the table */
+	void empty_table();
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */
@@ -2314,6 +2319,10 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
+
+	/** Trx id of bulk operation. This is under the protection of
+	exclusive lock of table object */
+	trx_id_t				bulk_trx_id;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
