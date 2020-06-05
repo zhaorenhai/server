@@ -421,12 +421,10 @@ CREATE SEQUENCE s1;
 drop sequence s1;
 drop sequence if exists t1,t2,t3,t4;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t3'
-Note	4091	Unknown SEQUENCE: 'test.t4'
+Note	4091	Unknown SEQUENCE: 'test.t3,test.t4'
 drop table if exists t1,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 CREATE TABLE t1 (a int);
 CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
@@ -448,9 +446,7 @@ CREATE TABLE t2 (a int);
 CREATE SEQUENCE s1;
 drop sequence if exists t1,t2,s1,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.s2'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.t2,test.s2'
 drop table if exists t1,t2;
 CREATE TEMPORARY SEQUENCE s1;
 DROP SEQUENCE s1;

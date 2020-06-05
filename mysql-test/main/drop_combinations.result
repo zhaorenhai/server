@@ -99,8 +99,7 @@ v2
 # Generating test tables
 drop table if exists t1,t4,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t4'
-Note	1051	Unknown table 'test.t3'
+Note	1051	Unknown table 'test.t4,test.t3'
 show tables;
 Tables_in_test
 s1
@@ -116,8 +115,7 @@ v2
 # Generating test tables
 drop table if exists t1,v1,v2,t2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 show tables;
 Tables_in_test
 s1
@@ -127,8 +125,7 @@ v2
 # Generating test tables
 drop table if exists v1,s1,s2,v2,t2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 show tables;
 Tables_in_test
 t1
@@ -138,13 +135,10 @@ v2
 drop table if exists t1,s1,v1,t3,t4;
 Warnings:
 Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.t3'
-Note	1051	Unknown table 'test.t4'
+Note	1051	Unknown table 'test.v1,test.t3,test.t4'
 drop table if exists s2,v2,t2,t1;
 Warnings:
-Note	1051	Unknown table 'test.v2'
-Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.v2,test.t1'
 show tables;
 Tables_in_test
 v1
@@ -152,8 +146,7 @@ v2
 # Generating test tables
 drop table if exists s1,v1,s2,v2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 show tables;
 Tables_in_test
 t1
@@ -208,35 +201,28 @@ Note	1051	Unknown table 'test.t3'
 # Generating test tables
 drop temporary table if exists t1,t4,t2,t3;
 Warnings:
-Note	1051	Unknown table 'test.t4'
-Note	1051	Unknown table 'test.t3'
+Note	1051	Unknown table 'test.t4,test.t3'
 # Generating test tables
 drop temporary table if exists t1,s1,s2,t2;
 # Generating test tables
 drop temporary table if exists t1,v1,v2,t2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 # Generating test tables
 drop temporary table if exists v1,s1,s2,v2,t2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 # Generating test tables
 drop temporary table if exists t1,s1,v1,t3,t4;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.t3'
-Note	1051	Unknown table 'test.t4'
+Note	1051	Unknown table 'test.v1,test.t3,test.t4'
 drop temporary table if exists s2,v2,t2,t1;
 Warnings:
-Note	1051	Unknown table 'test.v2'
-Note	1051	Unknown table 'test.t1'
+Note	1051	Unknown table 'test.v2,test.t1'
 # Generating test tables
 drop temporary table if exists s1,v1,s2,v2;
 Warnings:
-Note	1051	Unknown table 'test.v1'
-Note	1051	Unknown table 'test.v2'
+Note	1051	Unknown table 'test.v1,test.v2'
 # Generating test tables
 drop temporary table t1,t2;
 drop temporary sequence s1,s2;
@@ -348,8 +334,7 @@ v2
 # Generating test tables
 drop sequence if exists s1,s4,s2,s3;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.s4'
-Note	4091	Unknown SEQUENCE: 'test.s3'
+Note	4091	Unknown SEQUENCE: 'test.s4,test.s3'
 show tables;
 Tables_in_test
 t1
@@ -359,8 +344,7 @@ v2
 # Generating test tables
 drop sequence if exists s1,t1,t2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.t2'
 show tables;
 Tables_in_test
 t1
@@ -370,8 +354,7 @@ v2
 # Generating test tables
 drop sequence if exists s1,v1,v2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
 show tables;
 Tables_in_test
 t1
@@ -381,10 +364,7 @@ v2
 # Generating test tables
 drop sequence if exists v1,t1,t2,v2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.v1,test.t1,test.t2,test.v2'
 show tables;
 Tables_in_test
 s1
@@ -396,15 +376,10 @@ v2
 drop sequence if exists s1,t1,v1,t3,s4;
 Warnings:
 Warning	1017	Can't find file: './test/s1.MYI' (errno: 2 "No such file or directory")
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t3'
-Note	4091	Unknown SEQUENCE: 'test.s4'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t3,test.s4'
 drop sequence if exists t2,v2,s2,s1;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
-Note	4091	Unknown SEQUENCE: 'test.s1'
+Note	4091	Unknown SEQUENCE: 'test.t2,test.v2,test.s1'
 show tables;
 Tables_in_test
 t1
@@ -414,10 +389,7 @@ v2
 # Generating test tables
 drop sequence if exists t1,v1,t2,v2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t2,test.v2'
 show tables;
 Tables_in_test
 s1
@@ -475,44 +447,30 @@ Note	4091	Unknown SEQUENCE: 'test.s3'
 # Generating test tables
 drop temporary sequence if exists s1,s4,s2,s3;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.s4'
-Note	4091	Unknown SEQUENCE: 'test.s3'
+Note	4091	Unknown SEQUENCE: 'test.s4,test.s3'
 # Generating test tables
 drop temporary sequence if exists s1,t1,t2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.t2'
 # Generating test tables
 drop temporary sequence if exists s1,v1,v2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
 # Generating test tables
 drop temporary sequence if exists v1,t1,t2,v2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.v1,test.t1,test.t2,test.v2'
 # Generating test tables
 drop temporary sequence if exists s1,t1,v1,t3,s4;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t3'
-Note	4091	Unknown SEQUENCE: 'test.s4'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t3,test.s4'
 drop temporary sequence if exists t2,v2,s2,s1;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
-Note	4091	Unknown SEQUENCE: 'test.s1'
+Note	4091	Unknown SEQUENCE: 'test.t2,test.v2,test.s1'
 # Generating test tables
 drop temporary sequence if exists t1,v1,t2,v2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1'
-Note	4091	Unknown SEQUENCE: 'test.v1'
-Note	4091	Unknown SEQUENCE: 'test.t2'
-Note	4091	Unknown SEQUENCE: 'test.v2'
+Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t2,test.v2'
 # Generating test tables
 drop temporary table t1,t2;
 drop temporary sequence s1,s2;

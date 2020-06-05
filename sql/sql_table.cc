@@ -2240,7 +2240,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   LEX_CSTRING alias= null_clex_str;
   String wrong_tables(wrong_tables_buff, sizeof(wrong_tables_buff)-1,
                       system_charset_info);
-  uint path_length= 0, errors= 0;
+  uint path_length= 0, errors= 0, not_found_errors= 0;
   int error= 0;
   int non_temp_tables_count= 0;
   bool non_tmp_error= 0;
@@ -2616,40 +2616,48 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         error= ferror;
     }
 
-    /*
-      Don't give an error if we are using IF EXISTS for a table that
-      didn't exists
-    */
-
-    if (if_exists && non_existing_table_error(error))
+    if (error)
     {
       char buff[FN_REFLEN];
-      int err= (drop_sequence ? ER_UNKNOWN_SEQUENCES :
-                ER_BAD_TABLE_ERROR);
       String tbl_name(buff, sizeof(buff), system_charset_info);
       tbl_name.length(0);
       tbl_name.append(&db);
       tbl_name.append('.');
       tbl_name.append(&table->table_name);
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          err, ER_THD(thd, err),
-                          tbl_name.c_ptr_safe());
+
+      if (!non_existing_table_error(error))
+      {
+        int err= (drop_sequence ? ER_UNKNOWN_SEQUENCES :
+                  ER_BAD_TABLE_ERROR);
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            err, ER_THD(thd, err),
+                            tbl_name.c_ptr_safe());
+        errors++;
+      }
+      else
+        not_found_errors++;
+
+      if (wrong_tables.append(tbl_name) || wrong_tables.append(','))
+      {
+        error= 1;
+        goto err;
+      }
+    }
+
+    /*
+      Don't give an error if we are using IF EXISTS for a table that
+      didn't exists
+    */
+    if (if_exists && non_existing_table_error(error))
+    {
       error= 0;
       local_non_tmp_error= 0;
       drop_table_not_done= 1;
     }
+
     non_tmp_error|= local_non_tmp_error;
 
-    if (error)
-    {
-      if (wrong_tables.length())
-        wrong_tables.append(',');
-      wrong_tables.append(&db);
-      wrong_tables.append('.');
-      wrong_tables.append(&table->table_name);
-      errors++;
-    }
-    else if (!drop_table_not_done)
+    if (!error && !drop_table_not_done)
     {
       PSI_CALL_drop_table_share(temporary_table_was_dropped,
                                 table->db.str, (uint)table->db.length,
@@ -2679,19 +2687,27 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
   thd->thread_specific_used= TRUE;
   error= 0;
+
 err:
-  if (wrong_tables.length())
+  if (wrong_tables.length() > 1)
   {
-    DBUG_ASSERT(errors);
-    if (errors == 1 && was_view)
-      my_error(ER_IT_IS_A_VIEW, MYF(0), wrong_tables.c_ptr_safe());
-    else if (errors == 1 && drop_sequence && was_table)
-      my_error(ER_NOT_SEQUENCE2, MYF(0), wrong_tables.c_ptr_safe());
-    else if (errors > 1 || !thd->is_error())
-      my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES :
-                ER_BAD_TABLE_ERROR),
-               MYF(0), wrong_tables.c_ptr_safe());
-    error= 1;
+    uint is_note= !errors && if_exists ? ME_NOTE : 0;
+
+    wrong_tables.length(wrong_tables.length() - 1);  // Remove end ','
+    if (errors == 1 && !not_found_errors)
+    {
+      if (was_view)
+        my_error(ER_IT_IS_A_VIEW, MYF(is_note), wrong_tables.c_ptr_safe());
+      else if (drop_sequence)
+        my_error(ER_NOT_SEQUENCE2, MYF(is_note), wrong_tables.c_ptr_safe());
+      else
+        my_error(ER_BAD_TABLE_ERROR, MYF(is_note), wrong_tables.c_ptr_safe());
+    }
+    else
+      my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
+               MYF(is_note), wrong_tables.c_ptr_safe());
+
+    error= thd->is_error();
   }
 
   /*
@@ -5118,7 +5134,8 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
       If a table exists, it must have been pre-opened. Try looking for one
       in-use in THD::all_temp_tables list of TABLE_SHAREs.
     */
-    TABLE *tmp_table= thd->find_temporary_table(db.str, table_name.str);
+    TABLE *tmp_table= thd->find_temporary_table(db.str, table_name.str,
+                                                THD::TMP_TABLE_ANY);
 
     if (tmp_table)
     {
