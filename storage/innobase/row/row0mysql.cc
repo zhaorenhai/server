@@ -69,6 +69,8 @@ Created 9/17/2000 Heikki Tuuri
 #include <algorithm>
 #include <deque>
 #include <vector>
+// FIXME: remove
+#include <table.h>
 
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
@@ -1440,6 +1442,27 @@ row_insert_for_mysql(
 #endif
 			set_tuple_col_8(node->row, table->vers_start, trx->id,
 					node->vers_start_buf);
+		}
+		dict_index_t* clust_index = dict_table_get_first_index(table);
+		THD *thd= trx->mysql_thd;
+		TABLE *mysql_table = prebuilt->m_mysql_table;
+		mem_heap_t*	local_heap = NULL;
+		for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(table);
+		col_no++) {
+
+			const dict_v_col_t*     v_col
+				= dict_table_get_nth_v_col(table, col_no);
+			for (ulint i = 0; i < unsigned{v_col->num_base}; i++) {
+				dict_col_t*			base_col = v_col->base_col[i];
+				if (base_col->ind == table->vers_end) {
+					innobase_get_computed_value(
+						node->row, v_col, clust_index, &local_heap, table->heap, NULL, thd,
+						mysql_table, mysql_table->record[0], NULL, NULL, NULL);
+				}
+			}
+		}
+		if (local_heap) {
+			mem_heap_free(local_heap);
 		}
 	}
 

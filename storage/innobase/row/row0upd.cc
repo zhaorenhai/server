@@ -3503,5 +3503,19 @@ void upd_node_t::make_versioned_helper(const trx_t* trx, ulint idx)
 	}
 
 	dfield_set_data(&ufield->new_val, update->vers_sys_value, col->len);
-}
+	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(table);
+	     col_no++) {
 
+		const dict_v_col_t*     v_col
+			= dict_table_get_nth_v_col(table, col_no);
+		for (ulint i = 0; i < unsigned{v_col->num_base}; i++) {
+			dict_col_t*			base_col = v_col->base_col[i];
+			if (base_col->ind == col->ind) {
+				/* Virtual column depends on system field value which we updated above.
+				Remove it from update vector, so it is recalculated in row_upd_store_v_row() (see !update branch). */
+				update->remove(v_col->v_pos);
+				break;
+			}
+		}
+	}
+}
