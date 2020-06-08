@@ -10175,11 +10175,12 @@ void Column_definition::create_length_to_internal_length_newdecimal()
 
 
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
-                      enum_vcol_info_type type)
+                      enum_vcol_info_type type, Alter_info *alter_info)
 
 {
   bool ret;
   Item::vcol_func_processor_result res;
+  res.alter_info= alter_info;
 
   if (!vcol->name.length)
     vcol->name= *name;
@@ -10188,7 +10189,6 @@ bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
     Walk through the Item tree checking if all items are valid
     to be part of the virtual column
   */
-  res.errors= 0;
   ret= vcol->expr->walk(&Item::check_vcol_func_processor, 0, &res);
   vcol->flags= res.errors;
 

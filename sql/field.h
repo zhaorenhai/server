@@ -5694,7 +5694,7 @@ int set_field_to_null(Field *field);
 int set_field_to_null_with_conversions(Field *field, bool no_conversions);
 int convert_null_to_field_value_or_error(Field *field);
 bool check_expression(Virtual_column_info *vcol, const LEX_CSTRING *name,
-                      enum_vcol_info_type type);
+                      enum_vcol_info_type type, Alter_info *alter_info= NULL);
 
 /*
   The following are for the interface with the .frm file
