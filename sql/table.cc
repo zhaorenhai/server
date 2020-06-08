@@ -3894,7 +3894,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   outparam->intention_pos_in_table_list= table_list;
 
   if (share->incompatible_version &&
-      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR)))
+      !(ha_open_flags & (HA_OPEN_FOR_ALTER | HA_OPEN_FOR_REPAIR |
+                         HA_OPEN_FOR_FLUSH)))
   {
     /* one needs to run mysql_upgrade on the table */
     error= OPEN_FRM_NEEDS_REBUILD;
