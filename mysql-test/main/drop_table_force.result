@@ -1,11 +1,11 @@
 CALL mtr.add_suppression("Operating system error number");
 CALL mtr.add_suppression("The error means the system cannot");
 CALL mtr.add_suppression("returned OS error 71");
-#Test1: table with missing .ibd can be dropped directly, no need to drop force
+#Test1: table with missing .ibd can be dropped directly
 create table t1(a int)engine=innodb;
 drop table t1;
 db.opt
-#Test2: non super user has no privilege to drop force
+# Test droping table without frm without super privilege
 create table t1(a int) engine=innodb;
 create user test identified by '123456';
 grant all privileges on test.t1 to 'test'@'%'identified by '123456' with grant option;
@@ -18,7 +18,7 @@ connection default;
 disconnect con_test;
 drop user test;
 db.opt
-#Test4: drop table force can drop consistent table as well
+#Test4: drop table can drop consistent table as well
 create table t1(a int) engine=innodb;
 drop table t1;
 db.opt
@@ -37,7 +37,7 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 drop table child;
 drop table parent;
 db.opt
-#Test7: drop table force twice
+#Test7: drop table twice
 create table t1(a int)engine=innodb;
 drop table t1;
 db.opt
@@ -69,7 +69,7 @@ drop table parent cascade;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table child;
 drop table parent;
-#Test10: force drop non-innodb engine table returns ok
+#Test10: drop non-innodb engine table returns ok
 create table t1(a int) engine=myisam;
 drop table t1;
 create table t1(a int) engine=myisam;

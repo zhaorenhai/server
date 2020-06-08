@@ -1,20 +1,31 @@
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
 
+#
+# This test is based on the orginal test from Tencent for DROP TABLE ... FORCE
+# In MariaDB we did reuse the code but MariaDB does not require the FORCE
+# keyword to drop a table even if the .frm file or some engine files are
+# missing.
+# To make it easy to see the differences between the orginal code and
+# the new one, we have left some references to the original test case
+#
+
 CALL mtr.add_suppression("Operating system error number");
 CALL mtr.add_suppression("The error means the system cannot");
 CALL mtr.add_suppression("returned OS error 71");
 
 let $DATADIR= `select @@datadir`;
 
---echo #Test1: table with missing .ibd can be dropped directly, no need to drop force
+--echo #Test1: table with missing .ibd can be dropped directly
 # drop table without ibd
 create table t1(a int)engine=innodb;
 --remove_file $DATADIR/test/t1.ibd
 drop table t1;
 --list_files  $DATADIR/test/
 
---echo #Test2: non super user has no privilege to drop force
+# Original DROP TABLE .. FORCE required SUPER privilege. MariaDB doesn't
+--echo # Test droping table without frm without super privilege
+
 # create table t1 and rm frm
 create table t1(a int) engine=innodb;
 --remove_file $DATADIR/test/t1.frm
@@ -41,7 +52,7 @@ drop user test;
 # check files in datadir about t1
 --list_files  $DATADIR/test/
 
---echo #Test4: drop table force can drop consistent table as well
+--echo #Test4: drop table can drop consistent table as well
 create table t1(a int) engine=innodb;
 drop table t1;
 
@@ -80,11 +91,11 @@ drop table parent;
 # check files in datadir about child and parent
 --list_files  $DATADIR/test/
 
---echo #Test7: drop table force twice
+--echo #Test7: drop table twice
 create table t1(a int)engine=innodb;
 --remove_file $DATADIR/test/t1.frm
 
-# firt drop froce will success
+# first drop table will success
 drop table t1;
 
 # check files in datadir about t1
@@ -100,7 +111,7 @@ drop table if exists t1;
 create table t1(a int)engine=innodb;
 --remove_file $DATADIR/test/t1.frm
 
-# first drop force will success
+# first drop will success
 drop table t1;
 
 # check files in datadir about t1
@@ -132,7 +143,7 @@ drop table parent cascade;
 drop table child;
 drop table parent;
 
---echo #Test10: force drop non-innodb engine table returns ok
+--echo #Test10: drop non-innodb engine table returns ok
 # create myisam table t1 and rm .frm
 create table t1(a int) engine=myisam;
 --remove_file $DATADIR/test/t1.frm
