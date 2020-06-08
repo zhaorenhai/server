@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, 2019, MariaDB
+   Copyright (c) 2017, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,9 +34,9 @@ ST_FIELD_INFO disks_table_fields[]=
 {
   Column("Disk",      Varchar(PATH_MAX), NOT_NULL),
   Column("Path",      Varchar(PATH_MAX), NOT_NULL),
-  Column("Total",     SLong(32),         NOT_NULL), // Total amount available
-  Column("Used",      SLong(32),         NOT_NULL), // Amount of space used
-  Column("Available", SLong(32),         NOT_NULL), // Amount available to users other than root.
+  Column("Total",     SLonglong(),       NOT_NULL), // Total amount available
+  Column("Used",      SLonglong(),       NOT_NULL), // Amount of space used
+  Column("Available", SLonglong(),       NOT_NULL), // Amount available to users other than root.
   CEnd()
 };
 
