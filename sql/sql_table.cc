@@ -2236,11 +2236,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool dont_free_locks)
 {
   TABLE_LIST *table;
-  char path[FN_REFLEN + 1], wrong_tables_buff[160];
+  char path[FN_REFLEN + 1], unknown_tables_buff[160];
   LEX_CSTRING alias= null_clex_str;
-  String wrong_tables(wrong_tables_buff, sizeof(wrong_tables_buff)-1,
+  String unknown_tables(unknown_tables_buff, sizeof(unknown_tables_buff)-1,
                       system_charset_info);
-  uint path_length= 0, errors= 0, not_found_errors= 0;
+  uint path_length= 0, not_found_errors= 0;
   int error= 0;
   int non_temp_tables_count= 0;
   bool non_tmp_error= 0;
@@ -2253,7 +2253,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   String built_trans_tmp_query, built_non_trans_tmp_query;
   DBUG_ENTER("mysql_rm_table_no_locks");
 
-  wrong_tables.length(0);
+  unknown_tables.length(0);
   /*
     Prepares the drop statements that will be written into the binary
     log as follows:
@@ -2435,8 +2435,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       was_table|= wrong_drop_sequence;
       local_non_tmp_error= 1;
       error= -1;
-      if ((!frm_exists && !table_type) ||       // no .frm
-          if_exists)
+      if ((!frm_exists && !table_type))       // no .frm
         error= ENOENT;
     }
     else
@@ -2620,27 +2619,35 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       char buff[FN_REFLEN];
       String tbl_name(buff, sizeof(buff), system_charset_info);
+      uint is_note= (if_exists && (was_view || wrong_drop_sequence) ?
+                     ME_NOTE : 0);
+
       tbl_name.length(0);
       tbl_name.append(&db);
       tbl_name.append('.');
       tbl_name.append(&table->table_name);
 
-      if (!non_existing_table_error(error))
+      if (!non_existing_table_error(error) || is_note)
       {
-        int err= (drop_sequence ? ER_UNKNOWN_SEQUENCES :
-                  ER_BAD_TABLE_ERROR);
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            err, ER_THD(thd, err),
-                            tbl_name.c_ptr_safe());
-        errors++;
+        /*
+          Error from engine already given. Here we only have to take
+          care about errors for trying to drop view or sequence
+        */
+        if (was_view)
+          my_error(ER_IT_IS_A_VIEW, MYF(is_note), tbl_name.c_ptr_safe());
+        else if (wrong_drop_sequence)
+          my_error(ER_NOT_SEQUENCE2, MYF(is_note), tbl_name.c_ptr_safe());
+        if (is_note)
+          error= ENOENT;
       }
       else
-        not_found_errors++;
-
-      if (wrong_tables.append(tbl_name) || wrong_tables.append(','))
       {
-        error= 1;
-        goto err;
+        not_found_errors++;
+        if (unknown_tables.append(tbl_name) || unknown_tables.append(','))
+        {
+          error= 1;
+          goto err;
+        }
       }
     }
 
@@ -2689,26 +2696,14 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   error= 0;
 
 err:
-  if (wrong_tables.length() > 1)
+  if (unknown_tables.length() > 1)
   {
-    uint is_note= !errors && if_exists ? ME_NOTE : 0;
-
-    wrong_tables.length(wrong_tables.length() - 1);  // Remove end ','
-    if (errors == 1 && !not_found_errors)
-    {
-      if (was_view)
-        my_error(ER_IT_IS_A_VIEW, MYF(is_note), wrong_tables.c_ptr_safe());
-      else if (drop_sequence)
-        my_error(ER_NOT_SEQUENCE2, MYF(is_note), wrong_tables.c_ptr_safe());
-      else
-        my_error(ER_BAD_TABLE_ERROR, MYF(is_note), wrong_tables.c_ptr_safe());
-    }
-    else
-      my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
-               MYF(is_note), wrong_tables.c_ptr_safe());
-
-    error= thd->is_error();
+    uint is_note= if_exists ? ME_NOTE : 0;
+    unknown_tables.length(unknown_tables.length() - 1);  // Remove end ','
+    my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
+             MYF(is_note), unknown_tables.c_ptr_safe());
   }
+  error= thd->is_error();
 
   /*
     We are always logging drop of temporary tables.

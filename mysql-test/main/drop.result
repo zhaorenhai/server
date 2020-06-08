@@ -243,3 +243,15 @@ drop database mysqltest;
 Warnings:
 Note	1008	Can't drop database 'mysqltest'; database doesn't exist
 set @@session.sql_if_exists=0;
+#
+# MDEV-22820 Bogus "Unknown table" warnings produced upon attempt to
+#            drop parent table referenced by FK
+#
+create table t1 (a int, key(a)) engine=InnoDB;
+create table t2 (b int, foreign key(b) references t1(a)) engine=InnoDB;
+drop table if exists t1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+show warnings;
+Level	Code	Message
+Error	1451	Cannot delete or update a parent row: a foreign key constraint fails
+drop table t2,t1;
