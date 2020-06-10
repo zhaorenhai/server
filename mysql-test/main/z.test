@@ -1,0 +1,28 @@
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+show create table t1;
+alter table t1 add column b int;
+CALL sp;
+show create table t1;
+CALL sp;
+show create table t1;
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+CREATE PROCEDURE sp() ALTER TABLE t1 ADD CONSTRAINT CHECK (b > 0);
+--error ER_BAD_FIELD_ERROR
+CALL sp;
+alter table t1 add column b int, add constraint check (b < 10);
+CALL sp;
+show create table t1;
+# Cleanup
+DROP PROCEDURE sp;
+DROP TABLE t1;
