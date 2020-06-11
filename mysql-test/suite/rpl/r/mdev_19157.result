@@ -1,0 +1,15 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=7;
+set global slave_parallel_mode=optimistic;
+alter table mysql.gtid_slave_pos engine=myisam;
+SET GLOBAL gtid_slave_pos = "0-1-100";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+set global slave_parallel_mode=conservative;
+start slave;
+include/rpl_end.inc
