@@ -2650,12 +2650,12 @@ void JOIN::exec_inner()
         send_records= 0;
       if (!error)
       {
+        /* Single select (without union) always returns 0 or 1 row */
+        thd->limit_found_rows= send_records;
         join_free();                      // Unlock all cursors
         error= (int) result->send_eof();
       }
     }
-    /* Single select (without union) always returns 0 or 1 row */
-    thd->limit_found_rows= send_records;
     thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }

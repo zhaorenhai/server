@@ -767,10 +767,12 @@ bool st_select_lex_unit::optimize()
           we don't calculate found_rows() per union part.
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
-        sl->join->select_options= 
-          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
-          sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
-
+        sl->join->select_options=
+            (!found_rows_for_union) ? (sl->options & ~OPTION_FOUND_ROWS) :
+                                      ((sl->braces) ? ((select_limit_cnt==HA_POS_ERROR) ?
+                                                       (sl->options | found_rows_for_union) :
+                                                      (sl->options & ~OPTION_FOUND_ROWS)) :
+                                      (sl->options | found_rows_for_union));
 	saved_error= sl->join->optimize();
       }
 
@@ -848,9 +850,12 @@ bool st_select_lex_unit::exec()
           we don't calculate found_rows() per union part.
           Otherwise, SQL_CALC_FOUND_ROWS should be done on all sub parts.
         */
-        sl->join->select_options= 
-          (select_limit_cnt == HA_POS_ERROR || sl->braces) ?
-          sl->options & ~OPTION_FOUND_ROWS : sl->options | found_rows_for_union;
+        sl->join->select_options=
+            (!found_rows_for_union) ? (sl->options & ~OPTION_FOUND_ROWS) : 
+                                      ((sl->braces) ? ((select_limit_cnt==HA_POS_ERROR) ?
+                                                       (sl->options | found_rows_for_union) :
+                                                      (sl->options & ~OPTION_FOUND_ROWS)) :
+                                      (sl->options | found_rows_for_union));
 	saved_error= sl->join->optimize();
       }
       if (!saved_error)
