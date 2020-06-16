@@ -1935,6 +1935,9 @@ find_gtid_pos_tables_cb(THD *thd, LEX_CSTRING *table_name, void *arg)
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table= tlist.table;
+  if (!rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional)
+    rpl_global_gtid_slave_state->is_gtid_slave_pos_transactional
+                        = !(table->file->ha_table_flags() & HA_NO_TRANSACTIONS);
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;

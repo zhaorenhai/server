@@ -1,0 +1,90 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/have_rocksdb.inc
+--source include/master-slave.inc
+CALL mtr.add_suppression("The automatically created table .*");
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+alter table mysql.gtid_slave_pos engine=myisam;
+
+--echo #Warning will be in the logs
+SET GLOBAL slave_parallel_threads=10;
+--connection slave
+--source include/start_slave.inc
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN= Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel
+source include/search_pattern_in_file.inc;
+--source include/stop_slave.inc
+
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+--echo #Limitation of the Patch , Ideally there should be warning
+SET GLOBAL gtid_pos_auto_engines="myisam";
+--connection slave
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+SET GLOBAL gtid_pos_auto_engines="aria";
+--connection slave
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+
+
+SET GLOBAL gtid_pos_auto_engines="aria,innodb";
+--connection slave
+--source include/start_slave.inc
+--source include/stop_slave.inc
+source include/search_pattern_in_file.inc;
+
+
+
+SET GLOBAL gtid_pos_auto_engines="aria,innodb,rocksdb";
+--connection slave
+--source include/start_slave.inc
+source include/search_pattern_in_file.inc;
+
+
+--connection master
+create table t1(a int) engine=myisam;
+insert into t1 value(1);
+create table t2(a int) engine=aria;
+insert into t2 value(1);
+create table t3(a int) engine=innodb;
+insert into t3 value(1);
+create table t4(a int) engine=rocksdb;
+insert into t4 value(1);
+--sync_slave_with_master
+--connection master
+drop table t1,t2,t3,t4;
+
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--echo #No New Warning
+SET GLOBAL gtid_pos_auto_engines="";
+--connection slave
+--source include/start_slave.inc
+source include/search_pattern_in_file.inc;
+
+
+--echo #No New Warning
+--let $rpl_server_no= 2
+--source include/rpl_restart_server.inc
+source include/search_pattern_in_file.inc;
+
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL gtid_pos_auto_engines="";
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+DROP TABLE mysql.gtid_slave_pos_Aria;
+DROP TABLE mysql.gtid_slave_pos_ROCKSDB;
+--source include/start_slave.inc
+--source include/rpl_end.inc
+

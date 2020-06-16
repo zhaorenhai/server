@@ -1,0 +1,69 @@
+include/master-slave.inc
+[connection master]
+CALL mtr.add_suppression("The automatically created table .*");
+connection slave;
+include/stop_slave.inc
+alter table mysql.gtid_slave_pos engine=myisam;
+Warnings:
+Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+#Warning will be in the logs
+SET GLOBAL slave_parallel_threads=10;
+connection slave;
+include/start_slave.inc
+FOUND 1 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+include/stop_slave.inc
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+#Limitation of the Patch , Ideally there should be warning
+SET GLOBAL gtid_pos_auto_engines="myisam";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+SET GLOBAL gtid_pos_auto_engines="aria";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+SET GLOBAL gtid_pos_auto_engines="aria,innodb";
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+SET GLOBAL gtid_pos_auto_engines="aria,innodb,rocksdb";
+connection slave;
+include/start_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+connection master;
+create table t1(a int) engine=myisam;
+insert into t1 value(1);
+create table t2(a int) engine=aria;
+insert into t2 value(1);
+create table t3(a int) engine=innodb;
+insert into t3 value(1);
+create table t4(a int) engine=rocksdb;
+insert into t4 value(1);
+connection slave;
+connection master;
+drop table t1,t2,t3,t4;
+connection slave;
+include/stop_slave.inc
+#No New Warning
+SET GLOBAL gtid_pos_auto_engines="";
+connection slave;
+include/start_slave.inc
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+#No New Warning
+include/rpl_restart_server.inc [server_number=2]
+FOUND 2 /Non Transactional gtid_slave_pos table with Optimistic/Aggressive parallel/ in mysqld.2.err
+include/stop_slave.inc
+Warnings:
+Note	1255	Slave already has been stopped
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL gtid_pos_auto_engines="";
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+DROP TABLE mysql.gtid_slave_pos_Aria;
+DROP TABLE mysql.gtid_slave_pos_ROCKSDB;
+include/start_slave.inc
+include/rpl_end.inc
