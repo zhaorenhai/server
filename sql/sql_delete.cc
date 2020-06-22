@@ -685,7 +685,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table->prepare_triggers_for_delete_stmt_or_event())
     will_batch= !table->file->start_bulk_delete();
 
-  if (returning)
+  if (returning && !thd->get_stmt_da()->is_set())
   {
     if (result->send_result_set_metadata(returning->item_list,
                                 Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

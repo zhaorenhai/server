@@ -36,6 +36,7 @@ extern "C" int path_starts_from_data_home_dir(const char *dir);
 int test_if_data_home_dir(const char *dir);
 int error_if_data_home_dir(const char *path, const char *what);
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags);
+unsigned char *net_try_allocate_new_packet(NET *net, void *thd, uint my_flags);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
