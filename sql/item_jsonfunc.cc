@@ -1498,6 +1498,53 @@ append_null:
 }
 
 
+static int append_json_value_from_field(String *str, Item *i, Field *f,
+                                        String *tmp_val)
+{
+  if (i->type_handler()->is_bool_type())
+  {
+    if (f->is_null())
+      goto append_null;
+
+    longlong v_int= f->val_int();
+    const char *t_f;
+    int t_f_len;
+
+    if (v_int)
+    {
+      t_f= "true";
+      t_f_len= 4;
+    }
+    else
+    {
+      t_f= "false";
+      t_f_len= 5;
+    }
+
+    return str->append(t_f, t_f_len);
+  }
+  {
+    if (f->is_null())
+      goto append_null;
+    String *sv= f->val_str(tmp_val);
+
+    if (i->is_json_type())
+      return str->append(sv->ptr(), sv->length());
+
+    if (i->result_type() == STRING_RESULT)
+    {
+      return str->append("\"", 1) ||
+             st_append_escaped(str, sv) ||
+             str->append("\"", 1);
+    }
+    return st_append_escaped(str, sv);
+  }
+
+append_null:
+  return str->append("null", 4);
+}
+
+
 static int append_json_keyname(String *str, Item *item, String *tmp_val)
 {
   String *sv= item->val_str(tmp_val);
@@ -3682,6 +3729,19 @@ String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
   m_tmp_json.length(0);
 
   if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+    return NULL;
+
+  return &m_tmp_json;
+
+}
+
+
+String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
+                                                    String *tmp)
+{
+  m_tmp_json.length(0);
+
+  if (append_json_value_from_field(&m_tmp_json, i, f, tmp))
     return NULL;
 
   return &m_tmp_json;

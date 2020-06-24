@@ -105,7 +105,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (packed)
   {
     packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
-                                       full_size,
+                                       size,
                                        MYF(MY_WME | MY_THREAD_SPECIFIC));
   }
   /*
@@ -116,6 +116,10 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (!max_elements)
   {
     max_elements= 1;
+    /*
+      Need to ensure that we have memory to store atleast one record
+      in the Unique tree
+    */
     max_in_memory_size= sizeof(TREE_ELEMENT) + size;
   }
 
@@ -436,12 +440,6 @@ Unique::reset()
     reinit_io_cache(&file, WRITE_CACHE, 0L, 0, 1);
   }
   my_free(sort.record_pointers);
-  /*
-    TODO varun: this can be avoided too, currently done just to make sure
-    that the buffer is zeroed
-  */
-  if (packed_rec_ptr)
-    memset(packed_rec_ptr, 0, full_size);
   elements= 0;
   tree.flag= 0;
   sort.record_pointers= 0;
@@ -720,7 +718,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
                     (Merge_chunk *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
                     tree.compare, tree.custom_arg, &file, with_counters,
-                    min_dupl_count,is_packed());
+                    min_dupl_count, is_packed());
   }
   my_free(merge_buffer);
   return res;
@@ -768,7 +766,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.rec_length= sort_param.sort_length= sort_param.ref_length=
    full_size;
   sort_param.min_dupl_count= min_dupl_count;
-  sort_param.res_length= min_dupl_count ? sizeof(min_dupl_count) : 0;
+  sort_param.res_length= 0;
   sort_param.max_keys_per_buffer=
     (uint) MY_MAX((max_in_memory_size / sort_param.sort_length), MERGEBUFF2);
   sort_param.not_killable= 1;
@@ -833,6 +831,8 @@ bool Unique::get(TABLE *table)
   uchar *sort_buffer= NULL;
   sort.return_rows= elements+tree.elements_in_tree;
   DBUG_ENTER("Unique::get");
+
+  DBUG_ASSERT(packed == FALSE);
 
   if (my_b_tell(&file) == 0)
   {

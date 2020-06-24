@@ -894,7 +894,7 @@ bool Aggregator_distinct::setup(THD *thd)
         }
       }
 
-      bool allow_packing= item_sum->packing_is_allowed(table, &tree_key_length);
+      bool allow_packing= item_sum->is_packing_allowed(table, &tree_key_length);
 
       if (allow_packing)
       {
@@ -3910,8 +3910,8 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   if (packed)
   {
     pos= item->unique_filter->get_sortorder();
-    key+= Unique::size_of_length_field;
     key_end= key + item->unique_filter->get_full_size();
+    key+= Unique::size_of_length_field;
   }
 
   ulonglong *offset_limit= &item->copy_offset_limit;
@@ -3956,8 +3956,30 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
         if (packed)
         {
           DBUG_ASSERT(pos->field == field);
-          key= field->unpack(field->ptr, key, key_end, 0);
-          res= field->val_str(&tmp, &tmp);
+          if (!item->skip_nulls() && field->maybe_null())
+          {
+            if (*key == 0)
+            {
+              // Case with NULL value
+              field->set_null();
+              res= item->get_str_from_field(*arg, field, &tmp);
+              key++;
+            }
+            else
+            {
+              // Case with NOT NULL value
+              field->set_notnull();
+              const uchar *end= field->unpack(field->ptr, key+1, key_end, 0);
+              res= item->get_str_from_field(*arg, field, &tmp);
+              key= end;
+            }
+          }
+          else
+          {
+            const uchar *end= field->unpack(field->ptr, key, key_end, 0);
+            res= item->get_str_from_field(*arg, field, &tmp);
+            key= end;
+          }
           pos++;
         }
         else
@@ -4306,6 +4328,15 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       */
       if (is_distinct_packed())
       {
+        if (!exclude_nulls && field->maybe_null())
+        {
+          if (field->is_null_in_record((const uchar*) table->record[0]))
+          {
+            *to++=0;
+            continue;
+          }
+          *to++=1;
+        }
         uchar* end= field->pack(to, field->ptr);
         to+=  static_cast<uint>(end - to);
       }
@@ -4457,10 +4488,13 @@ bool Item_func_group_concat::setup(THD *thd)
     Item *item= args[i];
     if (list.push_back(item, thd->mem_root))
       DBUG_RETURN(TRUE);
-    if (item->const_item() && item->is_null() && skip_nulls())
+    if (item->const_item())
     {
-      always_null= 1;
-      DBUG_RETURN(FALSE);
+      if (item->is_null() && skip_nulls())
+      {
+        always_null= 1;
+        DBUG_RETURN(FALSE);
+      }
     }
     else
       non_const_items++;
@@ -4546,7 +4580,7 @@ bool Item_func_group_concat::setup(THD *thd)
      the row is not added to the result.
   */
   uint tree_key_length= table->s->reclength - table->s->null_bytes;
-  bool allow_packing= packing_is_allowed(&tree_key_length);
+  bool allow_packing= is_packing_allowed(&tree_key_length);
 
   if (arg_count_order)
   {
@@ -4572,7 +4606,7 @@ bool Item_func_group_concat::setup(THD *thd)
                               ram_limitation(thd), 0, allow_packing);
 
     if (!unique_filter || unique_filter->setup(thd, this, non_const_items,
-                                               arg_count_field, TRUE))
+                                               arg_count_field, skip_nulls()))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4718,7 +4752,7 @@ bool Item_func_group_concat::is_distinct_packed()
     FALSE    packing not allowed
 */
 
-bool Item_func_group_concat::packing_is_allowed(uint* total_length)
+bool Item_func_group_concat::is_packing_allowed(uint* total_length)
 {
   /*
     TODO varun:
@@ -4727,10 +4761,10 @@ bool Item_func_group_concat::packing_is_allowed(uint* total_length)
 
     Currently packing is disabled for JSON_ARRAYAGG function
   */
-  if (!distinct || arg_count_order || !skip_nulls())
+  if (!distinct || arg_count_order)
     return false;
 
-  return Item_sum::packing_is_allowed(table, total_length);
+  return Item_sum::is_packing_allowed(table, total_length);
 }
 
 
@@ -4744,7 +4778,7 @@ bool Item_func_group_concat::packing_is_allowed(uint* total_length)
 */
 
 
-bool Item_sum::packing_is_allowed(TABLE *table, uint* total_length)
+bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
 {
   uint size_of_packable_fields= 0;
   uint tot_length= 0;
@@ -4775,7 +4809,7 @@ bool Item_sum::packing_is_allowed(TABLE *table, uint* total_length)
     TODO varun: null_byte only need to be included for GROUP_CONCAT, so move
     it to GROUP concat implementation
   */
-  *total_length= tot_length + table->s->null_bytes;
+  *total_length= tot_length;
   /*
     Unique::size_of_lengt_field is the lengty bytes to store the packed length
     for each record inserted in the Unique tree

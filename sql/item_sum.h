@@ -590,7 +590,7 @@ public:
 
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
-  bool packing_is_allowed(TABLE* table, uint* total_length);
+  bool is_packing_allowed(TABLE* table, uint* total_length);
 };
 
 
@@ -1948,6 +1948,9 @@ protected:
   virtual String *get_str_from_field(Item *i, Field *f, String *tmp,
                                      const uchar *key, size_t offset)
     { return f->val_str(tmp, key + offset); }
+  virtual String *get_str_from_field(Item *i, Field *f, String *tmp)
+  { return f->val_str(tmp); }
+
   virtual void cut_max_length(String *result,
                               uint old_length, uint max_length) const;
 public:
@@ -2027,7 +2030,7 @@ public:
   uchar* get_record_pointer();
   uint get_null_bytes();
   bool is_distinct_packed();
-  bool packing_is_allowed(uint* total_length);
+  bool is_packing_allowed(uint* total_length);
 };
 
 #endif /* ITEM_SUM_INCLUDED */

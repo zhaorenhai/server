@@ -1724,17 +1724,17 @@ public:
     uchar *orig_to= table_field->ptr;
     DBUG_ASSERT(tree);
 
-    uint packed_length= tree->get_size();
+    uint length= tree->get_size();
     if (tree->is_packed())
     {
       uchar *to;
       orig_to= to= tree->get_packed_rec_ptr();
       to+= Unique::size_of_length_field;
       to+= table_field->make_packed_record_field(to);
-      packed_length= static_cast<uint>(to - orig_to);
-      Unique::store_packed_length(orig_to, packed_length);
+      length= static_cast<uint>(to - orig_to);
+      Unique::store_packed_length(orig_to, length);
     }
-    return tree->unique_add(orig_to, packed_length);
+    return tree->unique_add(orig_to, length);
   }
 
   /*
