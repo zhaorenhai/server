@@ -1717,7 +1717,9 @@ public:
   {
     table_field->mark_unused_memory_as_defined();
     uchar *orig_to= table_field->ptr;
-    uint packed_length= 0;
+    DBUG_ASSERT(tree);
+
+    uint packed_length= tree->get_size();
     if (tree->is_packed())
     {
       uchar *to;

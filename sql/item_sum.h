@@ -2022,7 +2022,7 @@ public:
     { context= (Name_resolution_context *)cntx; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_group_concat>(thd, this); }
-  qsort_cmp2 get_comparator_function_for_distinct();
+  qsort_cmp2 get_comparator_function_for_distinct(bool packed);
   qsort_cmp2 get_comparator_function_for_order_by();
   uchar* get_record_pointer();
   uint get_null_bytes();

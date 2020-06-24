@@ -4561,7 +4561,7 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (distinct)
   {
-    unique_filter= new Unique(get_comparator_function_for_distinct(),
+    unique_filter= new Unique(get_comparator_function_for_distinct(allow_packing),
                               (void*)this,
                               tree_key_length + get_null_bytes(),
                               ram_limitation(thd), 0, allow_packing);
@@ -4627,9 +4627,9 @@ String* Item_func_group_concat::val_str(String* str)
     Get the comparator function for DISTINT clause
 */
 
-qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct()
+qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct(bool packed)
 {
-  return is_distinct_packed() ?
+  return packed ?
          group_concat_packed_key_cmp_with_distinct :
          (skip_nulls() ?
           group_concat_key_cmp_with_distinct :
