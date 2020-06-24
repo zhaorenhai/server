@@ -11772,7 +11772,7 @@ int read_keys_and_merge_scans(THD *thd,
   }
 
   DBUG_ASSERT(file->ref_length == unique->get_size());
-  DBUG_ASSERT(thd->variables.sortbuff_size == unique->get_max_in_memory_size());
+  DBUG_ASSERT(thd->variables.sortbuff_size <= unique->get_max_in_memory_size());
 
   for (;;)
   {
