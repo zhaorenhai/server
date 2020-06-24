@@ -1571,14 +1571,10 @@ public:
     if (count > bucket_capacity * (curr_bucket + 1))
     {
       if (column->is_packable())
-      {
-        uchar *start= (uchar*)elem + Unique::size_of_length_field;
-        // unpacking the value to the Field::ptr
-        column->unpack(column->ptr, start,
-                       start + Unique::read_packed_length((uchar*)elem), 0);
-      }
+        column->store_packed_field_value((uchar *) elem);
       else
         column->store_field_value((uchar *) elem, col_length);
+
       histogram->set_value(curr_bucket,
                            column->pos_in_interval(min_value, max_value)); 
       curr_bucket++;
@@ -1677,12 +1673,20 @@ public:
   }
 
 
+  /*
+    @brief
+      Create and setup the Unique object for the column
+
+    @param
+      thd                    Thread structure
+      max_heap_table_size    max allowed size of the unique tree
+  */
   bool setup(THD *thd, size_t max_heap_table_size)
   {
     if (table_field->is_packable())
     {
-      tree_key_length= table_field->sort_length() +
-                       number_storage_requirement(table_field->sort_length());
+      tree_key_length= table_field->max_packed_col_length(table_field->pack_length());
+
       tree_key_length+= Unique::size_of_length_field;
       tree= new Unique((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
                        tree_key_length, max_heap_table_size, 1, TRUE);
@@ -1709,6 +1713,7 @@ public:
     return tree->setup(thd, table_field);
   }
 
+
   /*
     @brief
     Add the value of 'field' to the container of the Unique object 'tree'
@@ -1725,8 +1730,8 @@ public:
       uchar *to;
       orig_to= to= tree->get_packed_rec_ptr();
       to+= Unique::size_of_length_field;
-      uchar* end= table_field->pack(to, table_field->ptr);
-      packed_length= static_cast<uint>(end - orig_to);
+      to+= table_field->make_packed_record_field(to);
+      packed_length= static_cast<uint>(to - orig_to);
       Unique::store_packed_length(orig_to, packed_length);
     }
     return tree->unique_add(orig_to, packed_length);

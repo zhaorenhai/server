@@ -1865,8 +1865,7 @@ uchar *Aggregator_distinct::make_packed_record(uchar *to)
     /*
       Storing the packed values for the non-const fields of the record
     */
-    uchar* end= fld->pack(to, fld->ptr);
-    to+=  static_cast<uint>(end - to);
+    to+= fld->make_packed_record_field(to);
   }
   return to;
 }

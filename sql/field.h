@@ -1316,9 +1316,20 @@ public:
     }
     return update_fl;
   }
+
+  /*
+    @brief
+      Make a packed value for a field
+  */
+  virtual uint make_packed_record_field(uchar *to)
+  {
+    uchar* end= pack(to, ptr);
+    return static_cast<uint>(end - to);
+  }
+  virtual void store_packed_field_value(uchar *val);
   virtual void store_field_value(uchar *val, uint len)
   {
-     memcpy(ptr, val, len);
+    memcpy(ptr, val, len);
   }
   virtual uint decimals() const { return 0; }
   virtual Information_schema_numeric_attributes
