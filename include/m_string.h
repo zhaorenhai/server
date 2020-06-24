@@ -232,6 +232,10 @@ static inline char *safe_str(char *str)
 static inline const char *safe_str(const char *str)
 { return str ? str : ""; }
 
+static inline int safe_strcmp(char *str1, const char *str2)
+{ return ((str1 && str2) ? strcmp(str1, str2) : 
+                           strcmp(safe_str(str1), safe_str(str2))); }
+
 static inline size_t safe_strlen(const char *str)
 { return str ? strlen(str) : 0; }
 

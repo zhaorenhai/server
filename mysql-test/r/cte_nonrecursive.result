@@ -1690,4 +1690,25 @@ ERROR 3D000: No database selected
 DROP TABLE test.t;
 connection default;
 disconnect con1;
+#
+# MDEV-20643: Server crashes in find_table_in_list upon INSERT .. SELECT after dropping a database
+#
+CREATE TABLE t1 (a INT) ENGINE=MEMORY;
+CREATE SCHEMA db;
+CREATE PROCEDURE db.pr() SELECT * FROM test.t1;
+connect  con1,localhost,root,,test;
+DROP DATABASE db;
+connection default;
+SELECT * FROM t1;
+a
+KILL 11;
+CALL db.pr;
+CREATE TABLE test.t2 LIKE test.t1  ;
+INSERT test.t2 WITH cte AS ( SELECT * FROM test.t1 ) SELECT * FROM cte;
+connection con1;
+connection default;
+DROP DATABASE IF EXISTS db;
+Warnings:
+Note	1008	Can't drop database 'db'; database doesn't exist
+DROP TABLE IF EXISTS test.t1, test.t2;
 # End of 10.2 tests
