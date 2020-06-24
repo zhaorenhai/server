@@ -1041,6 +1041,12 @@ bool Aggregator_distinct::add()
       packed_length= static_cast<uint>(to - orig_to);
       Unique::store_packed_length(orig_to, packed_length);
     }
+    else
+    {
+      for (Field **field=table->field ; *field ; field++)
+        if ((*field)->is_real_null(0))
+          return 0;         // Don't count NULL
+    }
 
     if (tree)
     {
