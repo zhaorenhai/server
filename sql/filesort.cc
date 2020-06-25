@@ -1818,8 +1818,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   rec_length= param->rec_length;
   res_length= param->res_length;
   sort_length= param->sort_length;
-  uint dupl_count_ofs= rec_length-sizeof(element_count);
   uint min_dupl_count= param->min_dupl_count;
+  uint size_of_dupl_count= min_dupl_count ? sizeof(element_count) : 0;
+
   bool check_dupl_count= flag && min_dupl_count;
   offset= (rec_length-
            (flag && min_dupl_count ? sizeof(dupl_count) : 0)-res_length);
@@ -1872,16 +1873,16 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
        Store it also in 'to_file'.
     */
     buffpek= (Merge_chunk*) queue_top(&queue);
-    rec_length= using_packed_sortkeys ?
-                Unique::read_packed_length(buffpek->current_key()) :
-                rec_length;
+    rec_length= param->get_record_length_for_unique(buffpek->current_key(),
+                                                    size_of_dupl_count);
 
     DBUG_ASSERT(rec_length <= param->sort_length);
 
     memcpy(unique_buff, buffpek->current_key(), rec_length);
+    uint dupl_count_ofs= rec_length - sizeof(element_count);
     if (min_dupl_count)
-      memcpy(&dupl_count, unique_buff + rec_length - sizeof(element_count),
-             sizeof(dupl_count));
+      memcpy(&dupl_count, unique_buff + dupl_count_ofs, sizeof(dupl_count));
+
     buffpek->advance_current_key(rec_length);
     buffpek->decrement_mem_count();
     if (buffpek->mem_count() == 0)
@@ -1911,33 +1912,37 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       src= buffpek->current_key();
       if (cmp)                                        // Remove duplicates
       {
-        uchar *current_key= buffpek->current_key();
-        rec_length= using_packed_sortkeys ?
-                    Unique::read_packed_length(buffpek->current_key()) :
-                    rec_length;
-        DBUG_ASSERT(rec_length <= param->sort_length);
+        rec_length= param->get_record_length_for_unique(src,
+                                                        size_of_dupl_count);
 
-        if (!(*cmp)(first_cmp_arg, &unique_buff, &current_key))
+        DBUG_ASSERT(rec_length <= param->sort_length);
+        uint dupl_count_ofs= rec_length - sizeof(element_count);
+        if (!(*cmp)(first_cmp_arg, &unique_buff, &src))
         {
           if (min_dupl_count)
           {
             element_count cnt;
-            memcpy(&cnt, buffpek->current_key() +
-                   rec_length - sizeof(element_count), sizeof(cnt));
+            memcpy(&cnt, buffpek->current_key() + dupl_count_ofs, sizeof(cnt));
             dupl_count+= cnt;
           }
           goto skip_duplicate;
         }
+
+        rec_length= param->get_record_length_for_unique(unique_buff,
+                                                        size_of_dupl_count);
         if (min_dupl_count)
         {
-          memcpy(unique_buff + rec_length - sizeof(element_count), &dupl_count,
-                 sizeof(dupl_count));
+          DBUG_ASSERT(rec_length <= param->sort_length);
+          uint dupl_count_ofs= rec_length - sizeof(element_count);
+          memcpy(unique_buff + dupl_count_ofs, &dupl_count, sizeof(dupl_count));
         }
+        res_length= rec_length - sizeof(element_count);
         src= unique_buff;
       }
+      else
+        param->get_rec_and_res_len(src, &rec_length, &res_length);
 
       {
-        param->get_rec_and_res_len(src, &rec_length, &res_length);
         const uint bytes_to_write= (flag == 0) ? rec_length : res_length;
 
         /*
@@ -1959,15 +1964,14 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
         }
         if (cmp)
         {
-          rec_length= using_packed_sortkeys ?
-                      Unique::read_packed_length(buffpek->current_key()) :
-                      rec_length;
-          memcpy(unique_buff, buffpek->current_key(), rec_length);
+          rec_length= param->get_record_length_for_unique(src,
+                                                          size_of_dupl_count);
+          memcpy(unique_buff, src, rec_length);
           DBUG_ASSERT(rec_length <= param->sort_length);
+          uint dupl_count_ofs= rec_length - sizeof(element_count);
+
           if (min_dupl_count)
-            memcpy(&dupl_count,
-                   unique_buff + rec_length - sizeof(element_count),
-                   sizeof(dupl_count));
+            memcpy(&dupl_count, unique_buff + dupl_count_ofs, sizeof(dupl_count));
         }
         if (!--max_rows)
         {
@@ -2006,31 +2010,38 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   if (cmp)
   {
     uchar *current_key= buffpek->current_key();
-    param->get_rec_and_res_len(buffpek->current_key(),
-                               &rec_length, &res_length);
+    rec_length= param->get_record_length_for_unique(current_key,
+                                                    size_of_dupl_count);
+
+    DBUG_ASSERT(rec_length <= param->sort_length);
+    res_length= rec_length - sizeof(element_count);
+    uint dupl_count_ofs= rec_length - sizeof(element_count);
 
     if (!(*cmp)(first_cmp_arg, &unique_buff, &current_key))
     {
       if (min_dupl_count)
       {
         element_count cnt;
-        memcpy(&cnt,
-               buffpek->current_key() + rec_length - sizeof(element_count),
-               sizeof(cnt));
+        memcpy(&cnt, buffpek->current_key() + dupl_count_ofs, sizeof(cnt));
         dupl_count+= cnt;
       }
       buffpek->advance_current_key(rec_length);
       buffpek->decrement_mem_count();
     }
 
+    rec_length= param->get_record_length_for_unique(unique_buff,
+                                                    size_of_dupl_count);
     if (min_dupl_count)
-      memcpy(unique_buff + rec_length - sizeof(element_count), &dupl_count,
-             sizeof(dupl_count));
+    {
+      DBUG_ASSERT(rec_length <= param->sort_length);
+      uint dupl_count_ofs= rec_length - sizeof(element_count);
+      memcpy(unique_buff + dupl_count_ofs, &dupl_count, sizeof(dupl_count));
+    }
 
     if (!check_dupl_count || dupl_count >= min_dupl_count)
     {
       src= unique_buff;
-      param->get_rec_and_res_len(src, &rec_length, &res_length);
+      res_length = rec_length - sizeof(element_count);
       const uint bytes_to_write= (flag == 0) ? rec_length : res_length;
       if (my_b_write(to_file,
                         src + (offset_for_packing ?
@@ -2054,17 +2065,28 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     for (uint ix= 0; ix <  buffpek->mem_count(); ++ix)
     {
       uchar *src= buffpek->current_key();
-      param->get_rec_and_res_len(src,
-                                 &rec_length, &res_length);
-      const uint bytes_to_write= (flag == 0) ? rec_length : res_length;
-      if (check_dupl_count)
+      if (cmp)
       {
-        memcpy((uchar *) &dupl_count,
-               buffpek->current_key() + offset + dupl_count_ofs,
-               sizeof(dupl_count));
-        if (dupl_count < min_dupl_count)
-          continue;
+        rec_length= param->get_record_length_for_unique(src,
+                                                        size_of_dupl_count);
+        res_length= rec_length - sizeof(element_count);
+        if (check_dupl_count)
+        {
+          /*
+            TODO varun: this looks incorrect to me
+          */
+          uint dupl_count_ofs= rec_length - sizeof(element_count);
+          memcpy(&dupl_count, src + dupl_count_ofs, sizeof(dupl_count));
+
+          if (dupl_count < min_dupl_count)
+            continue;
+        }
       }
+      else
+        param->get_rec_and_res_len(src, &rec_length, &res_length);
+
+      const uint bytes_to_write= (flag == 0) ? rec_length : res_length;
+
       if(my_b_write(to_file,
                     src + (offset_for_packing ?
                            rec_length - res_length :     // sort length
@@ -2562,6 +2584,15 @@ void Sort_param::try_to_pack_sortkeys()
      to be updated
   */
   rec_length= sort_length + addon_length;
+}
+
+
+uint32 Sort_param::get_record_length_for_unique(uchar *to,
+                                                uint size_of_dupl_count)
+{
+  return using_packed_sortkeys() ?
+         Unique::read_packed_length(to) + size_of_dupl_count :
+         rec_length;
 }
 
 

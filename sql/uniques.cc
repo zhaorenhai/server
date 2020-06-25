@@ -549,6 +549,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   sort_param.rec_length= key_length;
   sort_param.sort_length= key_length;
   sort_param.min_dupl_count= min_dupl_count;
+  DBUG_ASSERT(sort_param.res_length  == 0);
   DBUG_ASSERT(!sort_param.using_addon_fields());
   sort_param.set_using_packed_keys(packed);
   uint size_of_dupl_count= min_dupl_count ? sizeof(element_count) : 0;
@@ -585,9 +586,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       read next key from the cache or from the file and push it to the
       queue; this gives new top.
     */
-    key_length= packed ?
-                Unique::read_packed_length((uchar*)old_key) + size_of_dupl_count:
-                key_length;
+    key_length= sort_param.get_record_length_for_unique((uchar*)old_key,
+                                                        size_of_dupl_count);
 
     cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
     top->advance_current_key(key_length);
@@ -639,9 +639,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   {
     do
     {
-      key_length= packed ?
-                  Unique::read_packed_length(top->current_key()) + size_of_dupl_count:
-                  key_length;
+      key_length= sort_param.get_record_length_for_unique(top->current_key(),
+                                                          size_of_dupl_count);
       cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
       cnt= with_counters ?
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;

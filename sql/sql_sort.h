@@ -671,6 +671,8 @@ public:
     m_packed_format= val;
   }
 
+  uint32 get_record_length_for_unique(uchar *to, uint size_of_dupl_count);
+
 private:
   uint m_packable_length;
   bool m_using_packed_addons; ///< caches the value of using_packed_addons()
