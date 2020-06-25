@@ -1717,8 +1717,7 @@ ulong read_to_buffer(IO_CACHE *fromfile, Merge_chunk *buffpek,
         uint res_length= param->get_result_length(plen);
         if (plen + res_length > buffpek->buffer_end())
           break;                                // Incomplete record.
-        DBUG_ASSERT((param->sort_keys == NULL)||
-                     res_length > 0);
+        DBUG_ASSERT(!param->sort_keys || res_length > 0);
         DBUG_ASSERT(sort_length + res_length <= param->rec_length);
         record+= sort_length;
         record+= res_length;
@@ -1912,7 +1911,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       src= buffpek->current_key();
       if (cmp)                                        // Remove duplicates
       {
-        rec_length= param->get_record_length_for_unique(src,
+        rec_length= param->get_record_length_for_unique(buffpek->current_key(),
                                                         size_of_dupl_count);
 
         DBUG_ASSERT(rec_length <= param->sort_length);
@@ -1936,7 +1935,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
           uint dupl_count_ofs= rec_length - sizeof(element_count);
           memcpy(unique_buff + dupl_count_ofs, &dupl_count, sizeof(dupl_count));
         }
-        res_length= rec_length - sizeof(element_count);
+        res_length= rec_length - size_of_dupl_count;
         src= unique_buff;
       }
       else
@@ -1964,9 +1963,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
         }
         if (cmp)
         {
-          rec_length= param->get_record_length_for_unique(src,
+          rec_length= param->get_record_length_for_unique(buffpek->current_key(),
                                                           size_of_dupl_count);
-          memcpy(unique_buff, src, rec_length);
+          memcpy(unique_buff, buffpek->current_key(), rec_length);
           DBUG_ASSERT(rec_length <= param->sort_length);
           uint dupl_count_ofs= rec_length - sizeof(element_count);
 
@@ -2041,7 +2040,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     if (!check_dupl_count || dupl_count >= min_dupl_count)
     {
       src= unique_buff;
-      res_length = rec_length - sizeof(element_count);
+      res_length = rec_length - size_of_dupl_count;
       const uint bytes_to_write= (flag == 0) ? rec_length : res_length;
       if (my_b_write(to_file,
                         src + (offset_for_packing ?
@@ -2069,7 +2068,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       {
         rec_length= param->get_record_length_for_unique(src,
                                                         size_of_dupl_count);
-        res_length= rec_length - sizeof(element_count);
+        res_length= rec_length - size_of_dupl_count;
         if (check_dupl_count)
         {
           /*
@@ -2586,7 +2585,15 @@ void Sort_param::try_to_pack_sortkeys()
   rec_length= sort_length + addon_length;
 }
 
+/*
+  @brief
+    Return the length of the record in the Unique tree
 
+  @param
+    to                        key value
+    size_of_dupl_count        if min_dupl_count > 0, then the record length
+                              needs size_of_dupl_count to store the counter
+*/
 uint32 Sort_param::get_record_length_for_unique(uchar *to,
                                                 uint size_of_dupl_count)
 {
@@ -2811,12 +2818,15 @@ bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
   @param
     fld              field structure
     exclude_nulls    TRUE if nulls are not to be considered
+    with_suffix      TRUE if length bytes needed to store the length
+                     for binary charset
 
   @note
     Currently used only by Unique object
+    TODD varun: we can refactor the code for filesort to use this function.
 
 */
-void SORT_FIELD::setup(Field *fld, bool exclude_nulls)
+void SORT_FIELD::setup(Field *fld, bool exclude_nulls, bool with_suffix)
 {
   field= fld;
   item= NULL;
@@ -2825,9 +2835,12 @@ void SORT_FIELD::setup(Field *fld, bool exclude_nulls)
     but we can even pass the reverse as an argument to the function
   */
   reverse= false;
-  original_length= length= field->sort_length();
+  original_length= length= (with_suffix ?
+                            field->sort_length() :
+                            field->sort_length_without_suffix());
+
   cs= field->sort_charset();
-  suffix_length= field->sort_suffix_length();
+  suffix_length= with_suffix ? field->sort_suffix_length() : 0;
   type= field->is_packable() ?
         SORT_FIELD_ATTR::VARIABLE_SIZE :
         SORT_FIELD_ATTR::FIXED_SIZE;
@@ -2990,6 +3003,16 @@ int compare_packed_sort_keys(void *sort_param,
   return retval;
 }
 
+
+/*
+  @brief
+    Compare two sort keys
+
+  @retval
+    >0   key a greater than b
+    =0   key a equal to b
+    <0   key a less than b
+*/
 
 int Sort_keys::compare_keys(uchar *a, uchar *b)
 {

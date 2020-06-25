@@ -165,4 +165,289 @@ RUSSIA	Customer#000000020,Customer#000000026,Customer#000000070,Customer#0000000
 SAUDI ARABIA	Customer#000000100	1
 UNITED KINGDOM	Customer#000000011,Customer#000000031,Customer#000000065	3
 VIETNAM	Customer#000000127	1
-drop database dbt3;
+#
+#  Tests for packed unique during EITS collection
+#
+SET @save_histogram_size= @@histogram_size;
+SET histogram_size=0;
+#
+# Testing when histograms are not created, this tests the function count_distinct_single_occurence_walk
+# passed as a callback function to walk
+#
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	OK
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+#
+# Testing when histograms are created,this tests the function histogram_build_walk
+# passed as a callback function to walk
+#
+SET histogram_size=255;
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+#
+#  Testing with very small memory for Unique, will do merging
+#
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+#
+#  Tests below show the avg_frequency calculated during EITS collection and
+#  we can compare that value by calculating distinct values for the same columns
+#
+#
+# Running ANALYZE for customer table
+#
+ANALYZE TABLE customer PERSISTENT FOR COLUMNS (c_name, c_phone, c_nationkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='customer' AND column_name IN ('c_name', 'c_phone', 'c_nationkey');
+column_name	avg_frequency
+c_name	1.0000
+c_nationkey	6.0000
+c_phone	1.0000
+SELECT COUNT(*), COUNT(DISTINCT c_name), COUNT(DISTINCT c_nationkey), COUNT(DISTINCT c_phone)
+FROM customer;
+COUNT(*)	COUNT(DISTINCT c_name)	COUNT(DISTINCT c_nationkey)	COUNT(DISTINCT c_phone)
+150	150	25	150
+#
+# Running ANALYZE for lineitem table
+#
+ANALYZE TABLE lineitem PERSISTENT FOR COLUMNS (l_shipDATE, l_shipinstruct) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='lineitem' AND column_name IN ('l_shipDATE', 'l_shipinstruct');
+column_name	avg_frequency
+l_shipDATE	2.6500
+l_shipinstruct	1501.2500
+SELECT COUNT(*), COUNT(DISTINCT l_shipDATE), COUNT(DISTINCT l_shipinstruct) FROM lineitem;
+COUNT(*)	COUNT(DISTINCT l_shipDATE)	COUNT(DISTINCT l_shipinstruct)
+6005	2266	4
+#
+# Running ANALYZE for nation table
+#
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS (n_name, n_regionkey) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='nation' AND column_name IN ('n_name', 'n_regionkey');
+column_name	avg_frequency
+n_name	1.0000
+n_regionkey	5.0000
+SELECT COUNT(*), COUNT(DISTINCT n_name), COUNT(DISTINCT n_regionkey) FROM nation;
+COUNT(*)	COUNT(DISTINCT n_name)	COUNT(DISTINCT n_regionkey)
+25	25	5
+#
+# Running ANALYZE for part table
+#
+ANALYZE TABLE part PERSISTENT FOR COLUMNS (p_name, p_mfgr) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.part	analyze	status	Engine-independent statistics collected
+dbt3.part	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='part' AND column_name IN ('p_name', 'p_mfgr');
+column_name	avg_frequency
+p_name	1.0000
+p_mfgr	40.0000
+SELECT COUNT(*), COUNT(DISTINCT p_name), COUNT(DISTINCT p_mfgr) FROM part;
+COUNT(*)	COUNT(DISTINCT p_name)	COUNT(DISTINCT p_mfgr)
+200	200	5
+#
+# Running ANALYZE for supplier table
+#
+ANALYZE TABLE supplier PERSISTENT FOR COLUMNS (s_acctbal, s_name, s_phone) INDEXES ();
+Table	Op	Msg_type	Msg_text
+dbt3.supplier	analyze	status	Engine-independent statistics collected
+dbt3.supplier	analyze	status	Table is already up to date
+SELECT column_name, avg_frequency
+FROM mysql.column_stats
+WHERE table_name='supplier' AND column_name IN ('s_acctbal', 's_name', 's_phone');
+column_name	avg_frequency
+s_name	1.0000
+s_phone	1.0000
+s_acctbal	1.0000
+SELECT COUNT(*), COUNT(DISTINCT s_acctbal), COUNT(DISTINCT s_name), COUNT(DISTINCT s_phone)
+FROM supplier;
+COUNT(*)	COUNT(DISTINCT s_acctbal)	COUNT(DISTINCT s_name)	COUNT(DISTINCT s_phone)
+10	10	10	10
+SET max_heap_table_size= @save_max_heap_table_size;
+SET histogram_size= @save_histogram_size;
+DROP DATABASE dbt3;

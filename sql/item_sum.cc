@@ -1842,7 +1842,7 @@ bool Aggregator_distinct::unique_walk_function_for_count(void *element)
 
   @retval
     TRUE    tree stored packed values
-    FALSE   othherwise
+    FALSE   otherwise
 */
 
 bool Aggregator_distinct::is_distinct_packed()
@@ -1852,6 +1852,13 @@ bool Aggregator_distinct::is_distinct_packed()
 }
 
 
+/*
+  @brief
+    Make a record with packed values
+
+  @param
+    to                     buffer to store the packed value
+*/
 uchar *Aggregator_distinct::make_packed_record(uchar *to)
 {
   to+= Unique::size_of_length_field;
@@ -4731,7 +4738,7 @@ uint Item_func_group_concat::get_null_bytes()
 
   @retval
     TRUE    tree stored packed values
-    FALSE   othherwise
+    FALSE   otherwise
 */
 
 bool Item_func_group_concat::is_distinct_packed()
@@ -4742,7 +4749,7 @@ bool Item_func_group_concat::is_distinct_packed()
 
 /*
   @brief
-    Checks if one can pack the values when using a Unique tree for distinct
+    Checks if one can store packed values in the Unique tree
 
   @param
     total_length   [OUT] length of the key in the tree
@@ -4758,8 +4765,6 @@ bool Item_func_group_concat::is_packing_allowed(uint* total_length)
     TODO varun:
     Currently Unique is not packed if ORDER BY clause is used
     This needs to be implemented when MDEV-22089 is fixed
-
-    Currently packing is disabled for JSON_ARRAYAGG function
   */
   if (!distinct || arg_count_order)
     return false;
@@ -4795,9 +4800,13 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
       */
       if (field->flags & BLOB_FLAG)
         return false;
-      tot_length+= field->sort_length();
+
+      tot_length+= field->sort_length_without_suffix();
       if (field->is_packable())
-        size_of_packable_fields+= number_storage_requirement(field->sort_length());
+      {
+        size_of_packable_fields+=
+              number_storage_requirement(field->sort_length_without_suffix());
+      }
     }
   }
 
@@ -4806,12 +4815,12 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     return false;
 
   /*
-    TODO varun: null_byte only need to be included for GROUP_CONCAT, so move
-    it to GROUP concat implementation
+    TODO varun: we can introduce a heuristic here, no need to do packing if we
+    have small VARCHAR or CHAR
   */
   *total_length= tot_length;
   /*
-    Unique::size_of_lengt_field is the lengty bytes to store the packed length
+    Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
   (*total_length)+= Unique::size_of_length_field + size_of_packable_fields;

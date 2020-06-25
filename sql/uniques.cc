@@ -876,6 +876,7 @@ err:
   DBUG_RETURN(rc);
 }
 
+
 /*
   @brief
     Setup the structures that are used when Unique stores packed values
@@ -923,11 +924,12 @@ Unique::setup(THD *thd, Item_sum *item, uint non_const_args,
     if (!field)
       continue;
 
-    pos->setup(field, exclude_nulls);
+    pos->setup(field, exclude_nulls, false);
     pos++;
   }
   return false;
 }
+
 
 /*
   @brief
@@ -959,7 +961,7 @@ bool Unique::setup(THD *thd, Field *field)
   if (!sort_keys)
     return true;
   sort=pos= sortorder;
-  pos->setup(field, true);  // Nulls are always excluded
+  pos->setup(field, true, false);  // Nulls are always excluded
 
   return false;
 }

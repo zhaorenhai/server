@@ -1570,10 +1570,15 @@ public:
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
+      uchar *to= (uchar* )elem;
       if (column->is_packable())
-        column->store_packed_field_value((uchar *) elem);
+      {
+        column->unpack(column->ptr,
+                       to + Unique::size_of_length_field,
+                       to + Unique::read_packed_length(to), 0);
+      }
       else
-        column->store_field_value((uchar *) elem, col_length);
+        column->store_field_value(to, col_length);
 
       histogram->set_value(curr_bucket,
                            column->pos_in_interval(min_value, max_value)); 
@@ -1805,6 +1810,10 @@ int Count_distinct_field::simple_ulonglong_key_cmp(void* arg,
 }
 
 
+/*
+  @brief
+    Compare function for packed keys
+*/
 int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
                                                     uchar* key1, uchar* key2)
 {

@@ -36,7 +36,6 @@
 #include "tztime.h"                      // struct Time_zone
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
-#include "uniques.h"
 #include <m_ctype.h>
 
 // Maximum allowed exponent value for converting string to decimal
@@ -2079,14 +2078,6 @@ Field::unpack(uchar* to, const uchar *from, const uchar *from_end,
 
   memcpy(to, from, len);
   return from+len;
-}
-
-
-void Field::store_packed_field_value(uchar *val)
-{
-  uchar *start= (uchar*)val + Unique::size_of_length_field;
-  // unpacking the value to the Field::ptr
-  unpack(ptr, start, start + Unique::read_packed_length((uchar*)val), 0);
 }
 
 

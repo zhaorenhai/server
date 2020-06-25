@@ -65,6 +65,10 @@ class Unique :public Sql_alloc
     @see Unique::setup()
   */
   SORT_FIELD *sortorder;
+
+  /*
+    Structure storing information about usage of keys
+  */
   Sort_keys *sort_keys;
 
   bool merge(TABLE *table, uchar *buff, size_t size, bool without_last_merge);
@@ -77,6 +81,7 @@ class Unique :public Sql_alloc
     return max_in_memory_size - memory_used;
   }
 
+  // Check if the Unique tree is full or not
   bool is_full(size_t record_size)
   {
     if (!tree.elements_in_tree)  // Atleast insert one element in the tree
@@ -169,13 +174,7 @@ public:
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
   {
-    return size_of_length_field + read_key_length(p);
-  }
-
-  // returns the length of the key without the length bytes stored for the key
-  static uint read_key_length(uchar *p)
-  {
-    return uint4korr(p);
+    return size_of_length_field + uint4korr(p);
   }
 
   bool setup(THD *thd, Item_sum *item, uint non_const_args,
@@ -187,9 +186,10 @@ public:
     TODO varun:
     Currently the size_of_length_field is set to 4 but we can also use 2 here,
     as fields are always inserted in the unique tree either from the base table
-    or from the temp table. This does not look possible as the merge process
+    or from the temp table.
+    This does not look possible as the merge process
     in merge buffers expect the length of dynmice sort keys to be stored in
-    4 bytes.
+    4 bytes, maybe this needs to be discussed
   */
   static const uint size_of_length_field= 4;
 

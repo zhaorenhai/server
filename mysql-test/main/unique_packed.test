@@ -106,5 +106,16 @@ SET histogram_size=0;
 
 SET histogram_size=255;
 --source include/unique_packed_eits.inc
+
+
+--echo #
+--echo #  Testing with very small memory for Unique, will do merging
+--echo #
+
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size=16384;
+--source include/unique_packed_eits.inc
+SET max_heap_table_size= @save_max_heap_table_size;
+
 SET histogram_size= @save_histogram_size;
 DROP DATABASE dbt3;
