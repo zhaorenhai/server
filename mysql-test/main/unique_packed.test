@@ -86,4 +86,25 @@ SELECT n_name, GROUP_CONCAT(DISTINCT c_name), COUNT(DISTINCT c_name)
 FROM customer, orders, nation
 WHERE o_custkey= c_custkey and c_nationkey= n_nationkey GROUP BY n_name;
 
-drop database dbt3;
+--echo #
+--echo #  Tests for packed unique during EITS collection
+--echo #
+
+SET @save_histogram_size= @@histogram_size;
+SET histogram_size=0;
+--echo #
+--echo # Testing when histograms are not created, this tests the function count_distinct_single_occurence_walk
+--echo # passed as a callback function to walk
+--echo #
+
+--source include/unique_packed_eits.inc
+
+--echo #
+--echo # Testing when histograms are created,this tests the function histogram_build_walk
+--echo # passed as a callback function to walk
+--echo #
+
+SET histogram_size=255;
+--source include/unique_packed_eits.inc
+SET histogram_size= @save_histogram_size;
+DROP DATABASE dbt3;
