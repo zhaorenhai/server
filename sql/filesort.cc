@@ -1794,7 +1794,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
                    int flag)
 {
   bool error= 0;
-  uint rec_length,res_length,offset;
+  uint rec_length,res_length,offset, rec_length_of_unique= 0;
   size_t sort_length;
   ulong maxcount, bytes_read;
   ha_rows max_rows,org_max_rows;
@@ -1895,6 +1895,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       else if (unlikely(bytes_read == (ulong) -1))
         goto err;                        /* purecov: inspected */ 
     }
+    rec_length_of_unique= rec_length;
     queue_replace_top(&queue);            // Top element has been used
   }
   else
@@ -1911,15 +1912,11 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       src= buffpek->current_key();
       if (cmp)                                        // Remove duplicates
       {
-        rec_length= param->get_record_length_for_unique(buffpek->current_key(),
-                                                        size_of_dupl_count);
-
-        DBUG_ASSERT(rec_length <= param->sort_length);
-        uint dupl_count_ofs= rec_length - sizeof(element_count);
         if (!(*cmp)(first_cmp_arg, &unique_buff, &src))
         {
           if (min_dupl_count)
           {
+            uint dupl_count_ofs= rec_length - sizeof(element_count);
             element_count cnt;
             memcpy(&cnt, buffpek->current_key() + dupl_count_ofs, sizeof(cnt));
             dupl_count+= cnt;
@@ -1927,8 +1924,6 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
           goto skip_duplicate;
         }
 
-        rec_length= param->get_record_length_for_unique(unique_buff,
-                                                        size_of_dupl_count);
         if (min_dupl_count)
         {
           DBUG_ASSERT(rec_length <= param->sort_length);
@@ -1965,12 +1960,13 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
         {
           rec_length= param->get_record_length_for_unique(buffpek->current_key(),
                                                           size_of_dupl_count);
-          memcpy(unique_buff, buffpek->current_key(), rec_length);
           DBUG_ASSERT(rec_length <= param->sort_length);
-          uint dupl_count_ofs= rec_length - sizeof(element_count);
-
+          memcpy(unique_buff, buffpek->current_key(), rec_length);
           if (min_dupl_count)
+          {
+            uint dupl_count_ofs= rec_length - sizeof(element_count);
             memcpy(&dupl_count, unique_buff + dupl_count_ofs, sizeof(dupl_count));
+          }
         }
         if (!--max_rows)
         {
@@ -2009,17 +2005,11 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   if (cmp)
   {
     uchar *current_key= buffpek->current_key();
-    rec_length= param->get_record_length_for_unique(current_key,
-                                                    size_of_dupl_count);
-
-    DBUG_ASSERT(rec_length <= param->sort_length);
-    res_length= rec_length - sizeof(element_count);
-    uint dupl_count_ofs= rec_length - sizeof(element_count);
-
     if (!(*cmp)(first_cmp_arg, &unique_buff, &current_key))
     {
       if (min_dupl_count)
       {
+        uint dupl_count_ofs= rec_length - sizeof(element_count);
         element_count cnt;
         memcpy(&cnt, buffpek->current_key() + dupl_count_ofs, sizeof(cnt));
         dupl_count+= cnt;
@@ -2028,8 +2018,6 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
       buffpek->decrement_mem_count();
     }
 
-    rec_length= param->get_record_length_for_unique(unique_buff,
-                                                    size_of_dupl_count);
     if (min_dupl_count)
     {
       DBUG_ASSERT(rec_length <= param->sort_length);
