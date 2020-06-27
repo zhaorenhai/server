@@ -173,39 +173,7 @@ my $path_config_file;           # The generated config file, var/my.cnf
 our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
 
 my @DEFAULT_SUITES= qw(
-    main-
-    archive-
-    binlog-
-    binlog_encryption-
     csv-
-    compat/oracle-
-    encryption-
-    federated-
-    funcs_1-
-    funcs_2-
-    gcol-
-    handler-
-    heap-
-    innodb-
-    innodb_fts-
-    innodb_gis-
-    innodb_zip-
-    json-
-    maria-
-    mariabackup-
-    multi_source-
-    optimizer_unfixed_bugs-
-    parts-
-    perfschema-
-    plugins-
-    roles-
-    rpl-
-    stress-
-    sys_vars-
-    sql_sequence-
-    unit-
-    vcol-
-    versioning-
   );
 my $opt_suites;
 
