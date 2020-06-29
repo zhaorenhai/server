@@ -26,7 +26,6 @@
 */
 
 #include "mariadb.h"
-#include "mysqld.h"
 #include "sql_priv.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
@@ -5578,7 +5577,7 @@ pthread_handler_t handle_slave_sql(void *arg)
           !(opt_gtid_pos_auto_plugins && *opt_gtid_pos_auto_plugins) &&
           mi->parallel_mode > SLAVE_PARALLEL_CONSERVATIVE &&
           opt_slave_parallel_threads > 1)
-    sql_print_warning("Non Transactional gtid_slave_pos table with"
+    sql_print_warning("Non transactional gtid_slave_pos table with"
                        " Optimistic/Aggressive parallel"
                        " mode can cause replication failure on slave");
   /* execute init_slave variable */
