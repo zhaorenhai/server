@@ -2688,7 +2688,7 @@ innobase_check_fk_option(
 /*************************************************************//**
 Set foreign key options
 @return true if successfully set */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 bool
 innobase_set_foreign_key_option(
 /*============================*/
@@ -8798,56 +8798,6 @@ func_exit:
 	DBUG_RETURN(fail);
 }
 
-/** Drop a FOREIGN KEY constraint from the data dictionary tables.
-@param trx data dictionary transaction
-@param table_name Table name in MySQL
-@param foreign_id Foreign key constraint identifier
-@retval true Failure
-@retval false Success */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-bool
-innobase_drop_foreign_try(
-/*======================*/
-	trx_t*			trx,
-	const char*		table_name,
-	const char*		foreign_id)
-{
-	DBUG_ENTER("innobase_drop_foreign_try");
-
-	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_d(dict_sys.assert_locked());
-
-	/* Drop the constraint from the data dictionary. */
-	static const char sql[] =
-		"PROCEDURE DROP_FOREIGN_PROC () IS\n"
-		"BEGIN\n"
-		"DELETE FROM SYS_FOREIGN WHERE ID=:id;\n"
-		"DELETE FROM SYS_FOREIGN_COLS WHERE ID=:id;\n"
-		"END;\n";
-
-	dberr_t		error;
-	pars_info_t*	info;
-
-	info = pars_info_create();
-	pars_info_add_str_literal(info, "id", foreign_id);
-
-	trx->op_info = "dropping foreign key constraint from dictionary";
-	error = que_eval_sql(info, sql, FALSE, trx);
-	trx->op_info = "";
-
-	DBUG_EXECUTE_IF("ib_drop_foreign_error",
-			error = DB_OUT_OF_FILE_SPACE;);
-
-	if (error != DB_SUCCESS) {
-		my_error_innodb(error, table_name, 0);
-		trx->error_state = DB_SUCCESS;
-		DBUG_RETURN(true);
-	}
-
-	DBUG_RETURN(false);
-}
-
 /** Rename a column in the data dictionary tables.
 @param[in] ctx			ALTER TABLE context
 @param[in,out] trx		Data dictionary transaction
@@ -8964,29 +8914,11 @@ rename_foreign:
 				continue;
 			}
 
-			pars_info_t* info = pars_info_create();
-
-			pars_info_add_str_literal(info, "id", foreign->id);
-			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "new", to);
-
-			error = que_eval_sql(
-				info,
-				"PROCEDURE RENAME_SYS_FOREIGN_F_PROC () IS\n"
-				"BEGIN\n"
-				"UPDATE SYS_FOREIGN_COLS\n"
-				"SET FOR_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth;\n"
-				"END;\n",
-				FALSE, trx);
-
-			if (error != DB_SUCCESS) {
-				goto err_exit;
-			}
 			foreign_modified = true;
 		}
 
 		if (foreign_modified) {
+			// TODO: do we need dict_foreign_remove_from_cache() here?
 			fk_evict.insert(foreign);
 		}
 	}
@@ -9006,25 +8938,6 @@ rename_foreign:
 				continue;
 			}
 
-			pars_info_t* info = pars_info_create();
-
-			pars_info_add_str_literal(info, "id", foreign->id);
-			pars_info_add_int4_literal(info, "nth", i);
-			pars_info_add_str_literal(info, "new", to);
-
-			error = que_eval_sql(
-				info,
-				"PROCEDURE RENAME_SYS_FOREIGN_R_PROC () IS\n"
-				"BEGIN\n"
-				"UPDATE SYS_FOREIGN_COLS\n"
-				"SET REF_COL_NAME=:new\n"
-				"WHERE ID=:id AND POS=:nth;\n"
-				"END;\n",
-				FALSE, trx);
-
-			if (error != DB_SUCCESS) {
-				goto err_exit;
-			}
 			foreign_modified = true;
 		}
 
@@ -9478,6 +9391,88 @@ commit_set_autoinc(
 	DBUG_RETURN(false);
 }
 
+/** Update the foreign key constraint definitions in the data dictionary cache
+after the changes to data dictionary tables were committed.
+@param ctx	In-place ALTER TABLE context
+@param user_thd	MySQL connection
+@return		InnoDB error code (should always be DB_SUCCESS) */
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
+dberr_t
+innobase_update_foreign_cache(
+/*==========================*/
+	ha_innobase_inplace_ctx*	ctx,
+	THD*				user_thd,
+	TABLE*				altered_table)
+{
+	dict_table_t*	user_table;
+	dberr_t		err = DB_SUCCESS;
+
+	DBUG_ENTER("innobase_update_foreign_cache");
+
+	ut_ad(mutex_own(&dict_sys.mutex));
+
+	user_table = ctx->old_table;
+
+	/* Discard the added foreign keys, because we will
+	load them from the data dictionary. */
+	for (ulint i = 0; i < ctx->num_to_add_fk; i++) {
+		dict_foreign_t*	fk = ctx->add_fk[i];
+		dict_foreign_free(fk);
+	}
+
+	if (ctx->need_rebuild()) {
+		/* The rebuilt table is already using the renamed
+		column names. No need to pass col_names or to drop
+		constraints from the data dictionary cache. */
+		DBUG_ASSERT(!ctx->col_names);
+		DBUG_ASSERT(user_table->foreign_set.empty());
+		DBUG_ASSERT(user_table->referenced_set.empty());
+		user_table = ctx->new_table;
+	} else {
+		/* Drop the foreign key constraints if the
+		table was not rebuilt. If the table is rebuilt,
+		there would not be any foreign key contraints for
+		it yet in the data dictionary cache. */
+		for (ulint i = 0; i < ctx->num_to_drop_fk; i++) {
+			dict_foreign_t* fk = ctx->drop_fk[i];
+			dict_foreign_remove_from_cache(fk);
+		}
+	}
+
+	/* Load the old or added foreign keys from the data dictionary
+	and prevent the table from being evicted from the data
+	dictionary cache (work around the lack of WL#6049). */
+
+	err = dict_load_foreigns(user_table, altered_table->s,
+				 ctx->col_names, true,
+				 DICT_ERR_IGNORE_NONE);
+
+	if (err == DB_CANNOT_ADD_CONSTRAINT) {
+
+		/* It is possible there are existing foreign key are
+		loaded with "foreign_key checks" off,
+		so let's retry the loading with charset_check is off */
+		err = dict_load_foreigns(user_table, altered_table->s,
+					 ctx->col_names, false,
+					 DICT_ERR_IGNORE_NONE);
+
+		/* The load with "charset_check" off is successful, warn
+		the user that the foreign key has loaded with mis-matched
+		charset */
+		if (err == DB_SUCCESS) {
+			push_warning_printf(
+				user_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ALTER_INFO,
+				"Foreign key constraints for table '%s'"
+				" are loaded with charset check off",
+				user_table->name.m_name);
+		}
+	}
+
+	DBUG_RETURN(err);
+}
+
 /** Add or drop foreign key constraints to the data dictionary tables,
 but do not touch the data dictionary cache.
 @param ha_alter_info Data used during in-place alter
@@ -9534,140 +9529,9 @@ innobase_update_foreign_try(
 				DBUG_RETURN(true);
 			}
 		}
-
-		/* The fk->foreign_col_names[] uses renamed column
-		names, while the columns in ctx->old_table have not
-		been renamed yet. */
-		error = dict_create_add_foreign_to_dictionary(
-			ctx->old_table->name.m_name, fk, trx);
-
-		DBUG_EXECUTE_IF(
-			"innodb_test_cannot_add_fk_system",
-			error = DB_ERROR;);
-
-		if (error != DB_SUCCESS) {
-			my_error(ER_FK_FAIL_ADD_SYSTEM, MYF(0),
-				 fk->id);
-			DBUG_RETURN(true);
-		}
-	}
-
-	for (i = 0; i < ctx->num_to_drop_fk; i++) {
-		dict_foreign_t* fk = ctx->drop_fk[i];
-
-		DBUG_ASSERT(fk->foreign_table == ctx->old_table);
-
-		if (innobase_drop_foreign_try(trx, table_name, fk->id)) {
-			DBUG_RETURN(true);
-		}
 	}
 
 	DBUG_RETURN(false);
-}
-
-/** Update the foreign key constraint definitions in the data dictionary cache
-after the changes to data dictionary tables were committed.
-@param ctx	In-place ALTER TABLE context
-@param user_thd	MySQL connection
-@return		InnoDB error code (should always be DB_SUCCESS) */
-static MY_ATTRIBUTE((nonnull, warn_unused_result))
-dberr_t
-innobase_update_foreign_cache(
-/*==========================*/
-	ha_innobase_inplace_ctx*	ctx,
-	THD*				user_thd)
-{
-	dict_table_t*	user_table;
-	dberr_t		err = DB_SUCCESS;
-
-	DBUG_ENTER("innobase_update_foreign_cache");
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-
-	user_table = ctx->old_table;
-
-	/* Discard the added foreign keys, because we will
-	load them from the data dictionary. */
-	for (ulint i = 0; i < ctx->num_to_add_fk; i++) {
-		dict_foreign_t*	fk = ctx->add_fk[i];
-		dict_foreign_free(fk);
-	}
-
-	if (ctx->need_rebuild()) {
-		/* The rebuilt table is already using the renamed
-		column names. No need to pass col_names or to drop
-		constraints from the data dictionary cache. */
-		DBUG_ASSERT(!ctx->col_names);
-		DBUG_ASSERT(user_table->foreign_set.empty());
-		DBUG_ASSERT(user_table->referenced_set.empty());
-		user_table = ctx->new_table;
-	} else {
-		/* Drop the foreign key constraints if the
-		table was not rebuilt. If the table is rebuilt,
-		there would not be any foreign key contraints for
-		it yet in the data dictionary cache. */
-		for (ulint i = 0; i < ctx->num_to_drop_fk; i++) {
-			dict_foreign_t* fk = ctx->drop_fk[i];
-			dict_foreign_remove_from_cache(fk);
-		}
-	}
-
-	/* Load the old or added foreign keys from the data dictionary
-	and prevent the table from being evicted from the data
-	dictionary cache (work around the lack of WL#6049). */
-	dict_names_t	fk_tables;
-
-	err = dict_load_foreigns(user_table->name.m_name,
-				 ctx->col_names, false, true,
-				 DICT_ERR_IGNORE_NONE,
-				 fk_tables);
-
-	if (err == DB_CANNOT_ADD_CONSTRAINT) {
-		fk_tables.clear();
-
-		/* It is possible there are existing foreign key are
-		loaded with "foreign_key checks" off,
-		so let's retry the loading with charset_check is off */
-		err = dict_load_foreigns(user_table->name.m_name,
-					 ctx->col_names, false, false,
-					 DICT_ERR_IGNORE_NONE,
-					 fk_tables);
-
-		/* The load with "charset_check" off is successful, warn
-		the user that the foreign key has loaded with mis-matched
-		charset */
-		if (err == DB_SUCCESS) {
-			push_warning_printf(
-				user_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_ALTER_INFO,
-				"Foreign key constraints for table '%s'"
-				" are loaded with charset check off",
-				user_table->name.m_name);
-		}
-	}
-
-	/* For complete loading of foreign keys, all associated tables must
-	also be loaded. */
-	while (err == DB_SUCCESS && !fk_tables.empty()) {
-		dict_table_t*	table = dict_load_table(
-			fk_tables.front(), DICT_ERR_IGNORE_NONE);
-
-		if (table == NULL) {
-			err = DB_TABLE_NOT_FOUND;
-			ib::error()
-				<< "Failed to load table '"
-				<< table_name_t(const_cast<char*>
-						(fk_tables.front()))
-				<< "' which has a foreign key constraint with"
-				<< " table '" << user_table->name << "'.";
-			break;
-		}
-
-		fk_tables.pop_front();
-	}
-
-	DBUG_RETURN(err);
 }
 
 /** Changes SYS_COLUMNS.PRTYPE for one column.
@@ -11045,7 +10909,7 @@ ha_innobase::commit_inplace_alter_table(
 			DBUG_PRINT("to_be_dropped",
 				   ("table: %s", ctx->old_table->name.m_name));
 
-			if (innobase_update_foreign_cache(ctx, m_user_thd)
+			if (innobase_update_foreign_cache(ctx, m_user_thd, altered_table)
 			    != DB_SUCCESS
 			    && m_prebuilt->trx->check_foreigns) {
 foreign_fail:
@@ -11058,7 +10922,7 @@ foreign_fail:
 			}
 		} else {
 			bool fk_fail = innobase_update_foreign_cache(
-				ctx, m_user_thd) != DB_SUCCESS;
+				ctx, m_user_thd, altered_table) != DB_SUCCESS;
 
 			if (!commit_cache_norebuild(ha_alter_info, ctx,
 						    altered_table, table,
