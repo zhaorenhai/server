@@ -9162,8 +9162,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 bool Item_field::is_item_selectivity_covered(void *arg)
 {
   SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
-  JOIN *join= same_field_arg->join;
-
   /*
     The same_field_arg is passed as a parameter because when we start walking over
     the condition tree we don't know which column the predicate will be
@@ -9177,8 +9175,8 @@ bool Item_field::is_item_selectivity_covered(void *arg)
   if (same_field_arg->field == NULL)
   {
     same_field_arg->field= field;
-    same_field_arg->present_in_equalities=
-                           join->is_present_in_multiple_equalities(field);
+    same_field_arg->present_in_equalities= item_equal != NULL;
+    same_field_arg->item_eq= item_equal;
     return false;
   }
 
@@ -9189,7 +9187,7 @@ bool Item_field::is_item_selectivity_covered(void *arg)
   if (!same_field_arg->present_in_equalities)
     return true;
 
-  return !join->is_present_in_multiple_equalities(field);
+  return !(same_field_arg->item_eq == item_equal);
 }
 
 

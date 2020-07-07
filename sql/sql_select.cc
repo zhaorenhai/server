@@ -29383,7 +29383,7 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
     Item *item;
     while ((item= li++))
     {
-      SAME_FIELD arg= {NULL, this, FALSE};
+      SAME_FIELD arg= {NULL, this, FALSE, NULL};
       if (item->walk(&Item::is_item_selectivity_covered, 0, &arg))
         return false;
     }
@@ -29391,7 +29391,7 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
   }
   else
   {
-    SAME_FIELD arg= {NULL, this, FALSE};
+    SAME_FIELD arg= {NULL, this, FALSE, NULL};
     return !conds->walk(&Item::is_item_selectivity_covered, 0, &arg);
   }
 }

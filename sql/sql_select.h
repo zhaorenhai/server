@@ -193,6 +193,7 @@ typedef struct same_field
     FALSE: Otherwise
   */
   bool present_in_equalities;
+  Item_equal *item_eq;
 }SAME_FIELD;
 
 /*
