@@ -8894,6 +8894,9 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
                       SELECT_LEX *lex)
 {
   b->natural_join= a;
+  a->part_of_natural_join= TRUE;
+  b->join_using= using_fields;
+  a->join_using= using_fields;
   lex->prev_join_using= using_fields;
 }
 

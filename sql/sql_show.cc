@@ -8094,7 +8094,8 @@ static void
 mark_all_fields_used_in_query(THD *thd,
                               ST_FIELD_INFO *schema_fields,
                               MY_BITMAP *bitmap,
-                              Item *all_items)
+                              Item *all_items,
+                              List<String> *join_using)
 {
   Item *item;
   DBUG_ENTER("mark_all_fields_used_in_query");
@@ -8125,6 +8126,25 @@ mark_all_fields_used_in_query(THD *thd,
       {
         if (!my_strcasecmp(system_charset_info, fields->field_name,
                            item_field->field_name.str))
+        {
+          bitmap_set_bit(bitmap, count);
+          break;
+        }
+      }
+    }
+  }
+  if (join_using)
+  {
+    List_iterator_fast<String> it(*join_using);
+    String *nm;
+    while ((nm= it++))
+    {
+      ST_FIELD_INFO *fields= schema_fields;
+      uint count;
+      for (count=0; fields->field_name; fields++, count++)
+      {
+        if (!my_strcasecmp(system_charset_info, fields->field_name,
+                           nm->ptr()))
         {
           bitmap_set_bit(bitmap, count);
           break;
@@ -8183,7 +8203,12 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
   else
     all_items= thd->free_list;
 
-  mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items);
+  if ((table_list->natural_join || table_list->part_of_natural_join) &&
+      table_list->join_using == NULL)
+    bitmap_set_all(&bitmap);
+  else
+    mark_all_fields_used_in_query(thd, fields_info, &bitmap, all_items,
+                                  table_list->join_using);
 
   for (field_count=0; fields_info->field_name; fields_info++)
   {
