@@ -1427,6 +1427,8 @@ bool Field::check_vcol_sql_mode_dependency(THD *thd, vcol_init_mode mode) const
 bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 {
   DBUG_ASSERT(!(flags & BLOB_FLAG));
+  if (item->check_is_evaluable_expression_or_error())
+    return 1;
   int res= item->save_in_field(this, true);
   return res != 0 && res != 3;
 }
@@ -11284,6 +11286,14 @@ bool Field::save_in_field_default_value(bool view_error_processing)
   if (vers_sys_field())
     return false;
 
+  if (table->pos_in_table_list == NULL) // table is not opened (CREATE TABLE)
+  {
+    DBUG_ASSERT(0); // shoud not be possible
+    my_message(ER_INVALID_DEFAULT_PARAM,
+               ER_THD(thd, ER_INVALID_DEFAULT_PARAM), MYF(0));
+    return false;
+  }
+
   if (unlikely(flags & NO_DEFAULT_VALUE_FLAG &&
                real_type() != MYSQL_TYPE_ENUM))
   {
@@ -11323,12 +11333,25 @@ bool Field::save_in_field_default_value(bool view_error_processing)
 bool Field::save_in_field_ignore_value(bool view_error_processing)
 {
   enum_sql_command com= table->in_use->lex->sql_command;
+  bool top_level= table->pos_in_table_list &&
+    table->pos_in_table_list->select_lex &&
+   table->pos_in_table_list->select_lex->is_top_level_select();
+
   // All insert-like commands
-  if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
-      com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
-      com == SQLCOM_LOAD)
-    return save_in_field_default_value(view_error_processing);
-  return 0; // ignore
+  if (top_level)
+  {
+    if (com == SQLCOM_INSERT || com == SQLCOM_REPLACE ||
+        com == SQLCOM_INSERT_SELECT || com == SQLCOM_REPLACE_SELECT ||
+        com == SQLCOM_LOAD)
+      return save_in_field_default_value(view_error_processing);
+    if (com == SQLCOM_UPDATE || com == SQLCOM_UPDATE_MULTI)
+      return 0; // ignore
+  }
+
+  DBUG_ASSERT(0); // shoud not be possible
+  my_message(ER_INVALID_DEFAULT_PARAM,
+             ER_THD(table->in_use, ER_INVALID_DEFAULT_PARAM), MYF(0));
+  return false;
 }
 
 

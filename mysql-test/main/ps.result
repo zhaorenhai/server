@@ -5489,6 +5489,14 @@ ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
 Database
 #
+# MDEV-15703: Crash in EXECUTE IMMEDIATE
+# 'CREATE OR REPLACE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT
+#
+EXECUTE IMMEDIATE 'CREATE TABLE t1 (a INT DEFAULT ?)' USING IGNORE;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+EXECUTE IMMEDIATE 'CREATE TABLE t1 (a INT DEFAULT ?)' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+#
 # End of 10.2 tests
 #
 #
