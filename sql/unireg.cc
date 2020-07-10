@@ -1000,8 +1000,14 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     {
       Item *expr= field->default_value->expr;
 
-      int res= !expr->fixed && // may be already fixed if ALTER TABLE
-                expr->fix_fields(thd, &expr);
+      int res= MY_TEST(!expr->fixed && // may be already fixed if ALTER TABLE
+                        expr->fix_fields(thd, &expr));
+      if (!res && expr->check_is_evaluable_expression_or_error())
+      {
+        error= 1;
+        delete regfield; //To avoid memory leak
+        goto err;
+      }
       if (!res)
         res= expr->save_in_field(regfield, 1);
       if (!res && (field->flags & BLOB_FLAG))
