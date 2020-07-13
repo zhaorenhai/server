@@ -294,7 +294,9 @@ public:
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
+
+  /* Array of records per key for index prefixes */
+  ulonglong *idx_avg_frequency;
   uchar *histograms;                /* Sequence of histograms       */                    
 };
 
@@ -448,11 +450,11 @@ private:
     in the first k components, and D is the number of distinct
     k-component prefixes among them 
   */
-  ulong *avg_frequency;
+  ulonglong *avg_frequency;
 
 public:
 
-  void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
+  void init_avg_frequency(ulonglong *ptr) { avg_frequency= ptr; }
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 
@@ -463,7 +465,7 @@ public:
 
   void set_avg_frequency(uint i, double val)
   {
-    avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
+    avg_frequency[i]= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
 };

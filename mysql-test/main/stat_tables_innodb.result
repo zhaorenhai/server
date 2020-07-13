@@ -926,4 +926,28 @@ set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
+#
+# MDEV-22851: the engine independent index statistics are incorrect for large tables. 
+#
+CREATE TABLE t1 AS SELECT * FROM INFORMATION_SCHEMA.COLUMNS;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+SET @save_use_stat_tables= @@use_stat_tables;
+SET use_stat_tables= preferably;
+SELECT count(*) FROM t1;
+count(*)
+55872
+CREATE INDEX idx ON t1(TABLE_CATALOG);
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS () INDEXES (idx);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.index_stats where table_name='t1';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx	1	55872.0000
+SET use_stat_tables= @save_use_stat_tables;
+DROP TABLE t1;
 SET SESSION STORAGE_ENGINE=DEFAULT;
