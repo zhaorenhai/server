@@ -26,12 +26,8 @@
 #include "ha_heap.h"
 #include "sql_base.h"                    // enum_tdc_remove_table_type
 
-static handler *heap_create_handler(handlerton *hton,
-                                    TABLE_SHARE *table, 
-                                    MEM_ROOT *mem_root);
-static int
-heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
-                            HP_CREATE_INFO *hp_create_info);
+static handler *heap_create_handler(handlerton *, TABLE_SHARE *, MEM_ROOT *);
+static int heap_prepare_hp_create_info(TABLE *, bool, HP_CREATE_INFO *);
 
 
 int heap_panic(handlerton *hton, ha_panic_function flag)
