@@ -377,11 +377,11 @@ public:
   const char *func_name() const { return "<in_optimizer>"; }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
-  virtual Item *expr_cache_insert_transformer(THD *thd, uchar *unused);
-  bool is_expensive_processor(void *arg);
-  bool is_expensive();
-  void set_join_tab_idx(uint join_tab_idx_arg)
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
+  bool is_expensive_processor(void *arg) override;
+  bool is_expensive() override;
+  void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
   virtual void get_cache_parameters(List<Item> &parameters);
   bool is_top_level_item();

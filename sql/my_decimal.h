@@ -43,6 +43,7 @@ C_MODE_END
 class String;
 class Field;
 typedef struct st_mysql_time MYSQL_TIME;
+typedef uint16 decimal_part_t;
 
 /**
   maximum size of packet length.
@@ -277,7 +278,7 @@ inline int check_result_and_overflow(uint mask, int result, my_decimal *val)
   return result;
 }
 
-inline uint my_decimal_length_to_precision(uint length, uint scale,
+inline uint my_decimal_length_to_precision(uint length, decimal_part_t scale,
                                            bool unsigned_flag)
 {
   /* Precision can't be negative thus ignore unsigned_flag when length is 0. */
@@ -287,7 +288,7 @@ inline uint my_decimal_length_to_precision(uint length, uint scale,
 }
 
 inline uint32 my_decimal_precision_to_length_no_truncation(uint precision,
-                                                           uint8 scale,
+                                                           decimal_part_t scale,
                                                            bool unsigned_flag)
 {
   /*
@@ -299,7 +300,7 @@ inline uint32 my_decimal_precision_to_length_no_truncation(uint precision,
                   (unsigned_flag || !precision ? 0 : 1));
 }
 
-inline uint32 my_decimal_precision_to_length(uint precision, uint8 scale,
+inline uint32 my_decimal_precision_to_length(uint precision, decimal_part_t scale,
                                              bool unsigned_flag)
 {
   /*
@@ -344,7 +345,7 @@ void my_decimal2decimal(const my_decimal *from, my_decimal *to)
 
 inline
 int binary2my_decimal(uint mask, const uchar *bin, my_decimal *d, int prec,
-		      int scale)
+		      decimal_part_t scale)
 {
   return check_result(mask, bin2decimal(bin, d, prec, scale));
 }
@@ -531,7 +532,7 @@ int my_decimal_intg(const my_decimal *a)
 }
 
 
-void my_decimal_trim(ulonglong *precision, uint *scale);
+void my_decimal_trim(ulonglong *precision, decimal_part_t *scale);
 
 
 #endif /*my_decimal_h*/
