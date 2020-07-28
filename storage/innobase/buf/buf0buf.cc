@@ -2651,7 +2651,6 @@ void buf_page_free(const page_id_t page_id,
 {
   ut_ad(mtr);
   ut_ad(mtr->is_active());
-  COUNTER(N_PAGE_GETS)++;
 
   const ulint fold= page_id.fold();
   page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
@@ -2703,7 +2702,6 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 {
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
-  COUNTER(N_PAGE_GETS)++;
 
   bool discard_attempted= false;
   const ulint fold= page_id.fold();
@@ -3103,7 +3101,6 @@ buf_page_get_low(
 	ut_ad(!mtr || !ibuf_inside(mtr)
 	      || ibuf_page_low(page_id, zip_size, FALSE, file, line, NULL));
 
-	COUNTER(N_PAGE_GETS)++;
 loop:
 	buf_block_t* fix_block;
 	block = guess;
@@ -3733,8 +3730,6 @@ buf_page_optimistic_get(
 	ut_ad(block->page.buf_fix_count());
 	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
-	COUNTER(N_PAGE_GETS)++;
-
 	return(TRUE);
 }
 
@@ -3795,7 +3790,6 @@ buf_page_try_get_func(
   ut_ad(bpage->id() == page_id);
   buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
-  COUNTER(N_PAGE_GETS)++;
   return block;
 }
 
@@ -4377,7 +4371,7 @@ void buf_refresh_io_stats()
 {
 	buf_pool.last_printout_time = time(NULL);
 	buf_pool.old_stat = buf_pool.stat;
-	buf_pool.old_n_page_gets = COUNTER_LOAD(N_PAGE_GETS);
+	buf_pool.old_n_page_gets = 1;
 }
 
 /** Invalidate all pages in the buffer pool.
@@ -4781,7 +4775,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pages_written = buf_pool.stat.n_pages_written;
 
-	pool_info->n_page_gets = COUNTER_LOAD(N_PAGE_GETS);
+	pool_info->n_page_gets = 1;
 
 	pool_info->n_ra_pages_read_rnd = buf_pool.stat.n_ra_pages_read_rnd;
 	pool_info->n_ra_pages_read = buf_pool.stat.n_ra_pages_read;
@@ -4813,8 +4807,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 			    - buf_pool.old_stat.n_pages_written)
 	/ time_elapsed;
 
-	pool_info->n_page_get_delta
-		= COUNTER_LOAD(N_PAGE_GETS) - buf_pool.old_n_page_gets;
+	pool_info->n_page_get_delta = 1 - buf_pool.old_n_page_gets;
 
 	if (pool_info->n_page_get_delta) {
 		pool_info->page_read_delta = buf_pool.stat.n_pages_read

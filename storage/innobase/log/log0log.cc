@@ -268,8 +268,6 @@ loop:
 		/* Not enough free space, do a write of the log buffer */
 		log_sys.initiate_write(false);
 
-		COUNTER(LOG_WAITS)++;
-
 		ut_ad(++count < 50);
 
 		log_mutex_enter();
@@ -344,8 +342,6 @@ part_loop:
 	if (str_len > 0) {
 		goto part_loop;
 	}
-
-	COUNTER(LOG_WRITE_REQUESTS)++;
 }
 
 /************************************************************//**
@@ -803,12 +799,8 @@ bool log_t::file::writes_are_durable() const noexcept
 
 void log_t::file::write(os_offset_t offset, span<byte> buf)
 {
-  COUNTER(OS_LOG_PENDING_WRITES)++;
   if (const dberr_t err= fd.write(offset, buf))
     ib::fatal() << "write(" << fd.get_path() << ") returned " << err;
-  COUNTER(OS_LOG_PENDING_WRITES)--;
-  COUNTER(OS_LOG_WRITTEN)+= buf.size();
-  COUNTER(LOG_WRITES)++;
   log_sys.n_log_ios++;
 }
 
@@ -1065,7 +1057,6 @@ static void log_write(bool rotate_key)
 		ut_uint64_align_down(log_sys.write_lsn,
 				     OS_FILE_LOG_BLOCK_SIZE),
 		start_offset - area_start);
-	COUNTER(LOG_PADDED) += pad_size;
 	log_sys.write_lsn = write_lsn;
 	if (log_sys.log.writes_are_durable())
 		log_sys.set_flushed_lsn(write_lsn);

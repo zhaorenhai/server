@@ -972,10 +972,6 @@ try_again:
 	fio.node->space->release_for_io();
 
 flush:
-	/* increment the doublewrite flushed pages counter */
-	COUNTER(DBLWR_PAGES_WRITTEN) += buf_dblwr->first_free;
-	COUNTER(DBLWR_WRITES)++;
-
 	/* Now flush the doublewrite buffer data to disk */
 	fil_flush(TRX_SYS_SPACE);
 
@@ -1116,10 +1112,6 @@ retry:
 found:
   s_reserved++;
   buf_block_arr[i]= { bpage, IORequest::SINGLE_PAGE, size };
-
-  /* increment the doublewrite flushed pages counter */
-  COUNTER(DBLWR_PAGES_WRITTEN)++;
-  COUNTER(DBLWR_WRITES)++;
 
   mutex_exit(&mutex);
 

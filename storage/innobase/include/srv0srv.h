@@ -474,11 +474,6 @@ extern singleton_counter_array<size_t,
                                static_cast<size_t>(counters_t::SIZE)>
     counter_array;
 
-#define COUNTER(IDX) counter_array[static_cast<size_t>(counters_t::IDX)]
-
-#define COUNTER_LOAD(IDX)                                                     \
-  counter_array.load(static_cast<size_t>(counters_t::IDX))
-
 /** Simulate compression failures. */
 extern uint srv_simulate_comp_failures;
 

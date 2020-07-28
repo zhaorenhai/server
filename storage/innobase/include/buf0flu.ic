@@ -70,6 +70,4 @@ buf_flush_note_modification(
 	} else {
 		ut_ad(oldest_modification <= start_lsn);
 	}
-
-	COUNTER(BUF_POOL_WRITE_REQUESTS)++;
 }

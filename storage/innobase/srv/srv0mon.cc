@@ -1615,24 +1615,24 @@ srv_mon_process_existing_counter(
 	/* export_vars.innodb_buffer_pool_reads. Num Reads from
 	disk (page not in buffer) */
 	case MONITOR_OVLD_BUF_POOL_READS:
-		value = COUNTER_LOAD(BUF_POOL_READS);
+		value = 1;
 		break;
 
 	/* innodb_buffer_pool_read_requests, the number of logical
 	read requests */
 	case MONITOR_OVLD_BUF_POOL_READ_REQUESTS:
-		value = COUNTER_LOAD(N_PAGE_GETS);
+		value = 1;
 		break;
 
 	/* innodb_buffer_pool_write_requests, the number of
 	write request */
 	case MONITOR_OVLD_BUF_POOL_WRITE_REQUEST:
-		value = COUNTER_LOAD(BUF_POOL_WRITE_REQUESTS);
+		value = 1;
 		break;
 
 	/* innodb_buffer_pool_wait_free */
 	case MONITOR_OVLD_BUF_POOL_WAIT_FREE:
-		value = COUNTER_LOAD(BUF_POOL_WAIT_FREE);
+		value = 1;
 		break;
 
 	/* innodb_buffer_pool_read_ahead */
@@ -1711,22 +1711,22 @@ srv_mon_process_existing_counter(
 
 	/* Number of times secondary index lookup triggered cluster lookup */
 	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS:
-		value = COUNTER_LOAD(N_SEC_REC_CLUSTER_READS);
+		value = 1;
 		break;
 	/* Number of times prefix optimization avoided triggering cluster
 	lookup */
 	case MONITOR_OVLD_INDEX_SEC_REC_CLUSTER_READS_AVOIDED:
-		value = COUNTER_LOAD(N_SEC_REC_CLUSTER_READS_AVOIDED);
+		value = 1;
 		break;
 
 	/* innodb_data_reads, the total number of data reads */
 	case MONITOR_OVLD_BYTE_READ:
-		value = COUNTER_LOAD(DATA_READ);
+		value = 1;
 		break;
 
 	/* innodb_data_writes, the total number of data writes. */
 	case MONITOR_OVLD_BYTE_WRITTEN:
-		value = COUNTER_LOAD(DATA_WRITTEN);
+		value = 1;
 		break;
 
 	/* innodb_data_reads, the total number of data reads. */
@@ -1746,7 +1746,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = static_cast<mon_type_t>(COUNTER_LOAD(OS_LOG_WRITTEN));
+		value = static_cast<mon_type_t>(1);
 		break;
 
 	/* innodb_os_log_fsyncs */
@@ -1762,37 +1762,37 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_pending_writes */
 	case MONITOR_OVLD_OS_LOG_PENDING_WRITES:
-		value = COUNTER_LOAD(OS_LOG_PENDING_WRITES);
+		value = 1;
 		update_min = TRUE;
 		break;
 
 	/* innodb_log_waits */
 	case MONITOR_OVLD_LOG_WAITS:
-		value = COUNTER_LOAD(LOG_WAITS);
+		value = 1;
 		break;
 
 	/* innodb_log_write_requests */
 	case MONITOR_OVLD_LOG_WRITE_REQUEST:
-		value = COUNTER_LOAD(LOG_WRITE_REQUESTS);
+		value = 1;
 		break;
 
 	/* innodb_log_writes */
 	case MONITOR_OVLD_LOG_WRITES:
-		value = COUNTER_LOAD(LOG_WRITES);
+		value = 1;
 		break;
 
 	case MONITOR_OVLD_LOG_PADDED:
-		value = COUNTER_LOAD(LOG_PADDED);
+		value = 1;
 		break;
 
 	/* innodb_dblwr_writes */
 	case MONITOR_OVLD_SRV_DBLWR_WRITES:
-		value = COUNTER_LOAD(DBLWR_WRITES);
+		value = 1;
 		break;
 
 	/* innodb_dblwr_pages_written */
 	case MONITOR_OVLD_SRV_DBLWR_PAGES_WRITTEN:
-		value = COUNTER_LOAD(DBLWR_PAGES_WRITTEN);
+		value = 1;
 		break;
 
 	/* innodb_page_size */
@@ -1842,52 +1842,52 @@ srv_mon_process_existing_counter(
 
 	/* innodb_rows_read */
 	case MONITOR_OLVD_ROW_READ:
-		value = COUNTER_LOAD(N_ROWS_READ);
+		value = 1;
 		break;
 
 	/* innodb_rows_inserted */
 	case MONITOR_OLVD_ROW_INSERTED:
-		value = COUNTER_LOAD(N_ROWS_INSERTED);
+		value = 1;
 		break;
 
 	/* innodb_rows_deleted */
 	case MONITOR_OLVD_ROW_DELETED:
-		value = COUNTER_LOAD(N_ROWS_DELETED);
+		value = 1;
 		break;
 
 	/* innodb_rows_updated */
 	case MONITOR_OLVD_ROW_UPDTATED:
-		value = COUNTER_LOAD(N_ROWS_UPDATED);
+		value = 1;
 		break;
 
 	/* innodb_system_rows_read */
 	case MONITOR_OLVD_SYSTEM_ROW_READ:
-		value = COUNTER_LOAD(N_SYSTEM_ROWS_READ);
+		value = 1;
 		break;
 
 	/* innodb_system_rows_inserted */
 	case MONITOR_OLVD_SYSTEM_ROW_INSERTED:
-		value = COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED);
+		value = 1;
 		break;
 
 	/* innodb_system_rows_deleted */
 	case MONITOR_OLVD_SYSTEM_ROW_DELETED:
-		value = COUNTER_LOAD(N_SYSTEM_ROWS_DELETED);
+		value = 1;
 		break;
 
 	/* innodb_system_rows_updated */
 	case MONITOR_OLVD_SYSTEM_ROW_UPDATED:
-		value = COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED);
+		value = 1;
 		break;
 
 	/* innodb_row_lock_current_waits */
 	case MONITOR_OVLD_ROW_LOCK_CURRENT_WAIT:
-		value = COUNTER_LOAD(N_LOCK_WAIT_CURRENT_COUNT);
+		value = 1;
 		break;
 
 	/* innodb_row_lock_time */
 	case MONITOR_OVLD_LOCK_WAIT_TIME:
-		value = COUNTER_LOAD(N_LOCK_WAIT_TIME) / 1000;
+		value = 1 / 1000;
 		break;
 
 	/* innodb_row_lock_time_max */
@@ -1897,8 +1897,8 @@ srv_mon_process_existing_counter(
 
 	/* innodb_row_lock_time_avg */
 	case MONITOR_OVLD_LOCK_AVG_WAIT_TIME:
-		if (uint64_t count = COUNTER_LOAD(N_LOCK_WAIT_COUNT)) {
-			value = COUNTER_LOAD(N_LOCK_WAIT_TIME) / 1000 / count;
+		if (uint64_t count = 1) {
+			value = 1 / 1000 / count;
 		} else {
 			value = 0;
 		}
@@ -1906,7 +1906,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_row_lock_waits */
 	case MONITOR_OVLD_ROW_LOCK_WAIT:
-		value = COUNTER_LOAD(N_LOCK_WAIT_COUNT);
+		value = 1;
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:

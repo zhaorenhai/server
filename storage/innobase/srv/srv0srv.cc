@@ -841,15 +841,15 @@ srv_refresh_innodb_monitor_stats(void)
 
 	buf_refresh_io_stats();
 
-	srv_n_rows_inserted_old = COUNTER_LOAD(N_ROWS_INSERTED);
-	srv_n_rows_updated_old = COUNTER_LOAD(N_ROWS_UPDATED);
-	srv_n_rows_deleted_old = COUNTER_LOAD(N_ROWS_DELETED);
-	srv_n_rows_read_old = COUNTER_LOAD(N_ROWS_READ);
+	srv_n_rows_inserted_old = 1;
+	srv_n_rows_updated_old = 1;
+	srv_n_rows_deleted_old = 1;
+	srv_n_rows_read_old = 1;
 
-	srv_n_system_rows_inserted_old = COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED);
-	srv_n_system_rows_updated_old = COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED);
-	srv_n_system_rows_deleted_old = COUNTER_LOAD(N_SYSTEM_ROWS_DELETED);
-	srv_n_system_rows_read_old = COUNTER_LOAD(N_SYSTEM_ROWS_READ);
+	srv_n_system_rows_inserted_old = 1;
+	srv_n_system_rows_updated_old = 1;
+	srv_n_system_rows_deleted_old = 1;
+	srv_n_system_rows_read_old = 1;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }
@@ -1036,53 +1036,53 @@ srv_printf_innodb_monitor(
 	fprintf(file,
 		"Number of rows inserted %zu, updated %zu, deleted %zu, read "
 		"%zu\n",
-		COUNTER_LOAD(N_ROWS_INSERTED), COUNTER_LOAD(N_ROWS_UPDATED),
-		COUNTER_LOAD(N_ROWS_DELETED), COUNTER_LOAD(N_ROWS_READ));
+		(size_t)1, (size_t)1,
+		(size_t)1, (size_t)1);
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		static_cast<double>(COUNTER_LOAD(N_ROWS_INSERTED)
+		static_cast<double>(1
 				    - srv_n_rows_inserted_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_ROWS_UPDATED)
+		static_cast<double>(1
 				    - srv_n_rows_updated_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_ROWS_DELETED)
+		static_cast<double>(1
 				    - srv_n_rows_deleted_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_ROWS_READ)
+		static_cast<double>(1
 				    - srv_n_rows_read_old)
 			/ time_elapsed);
 	fprintf(file,
 		"Number of system rows inserted %zu, updated %zu, deleted "
 		"%zu, read %zu\n",
-		COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED),
-		COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED),
-		COUNTER_LOAD(N_SYSTEM_ROWS_DELETED),
-		COUNTER_LOAD(N_SYSTEM_ROWS_READ));
+		(size_t)1,
+		(size_t)1,
+		(size_t)1,
+		(size_t)1);
 	fprintf(file,
 		"%.2f inserts/s, %.2f updates/s,"
 		" %.2f deletes/s, %.2f reads/s\n",
-		static_cast<double>(COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED)
+		static_cast<double>(1
 				    - srv_n_system_rows_inserted_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED)
+		static_cast<double>(1
 				    - srv_n_system_rows_updated_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_SYSTEM_ROWS_DELETED)
+		static_cast<double>(1
 				    - srv_n_system_rows_deleted_old)
 			/ time_elapsed,
-		static_cast<double>(COUNTER_LOAD(N_SYSTEM_ROWS_READ)
+		static_cast<double>(1
 				    - srv_n_system_rows_read_old)
 			/ time_elapsed);
-	srv_n_rows_inserted_old = COUNTER_LOAD(N_ROWS_INSERTED);
-	srv_n_rows_updated_old = COUNTER_LOAD(N_ROWS_UPDATED);
-	srv_n_rows_deleted_old = COUNTER_LOAD(N_ROWS_DELETED);
-	srv_n_rows_read_old = COUNTER_LOAD(N_ROWS_READ);
-	srv_n_system_rows_inserted_old = COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED);
-	srv_n_system_rows_updated_old = COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED);
-	srv_n_system_rows_deleted_old = COUNTER_LOAD(N_SYSTEM_ROWS_DELETED);
-	srv_n_system_rows_read_old = COUNTER_LOAD(N_SYSTEM_ROWS_READ);
+	srv_n_rows_inserted_old = 1;
+	srv_n_rows_updated_old = 1;
+	srv_n_rows_deleted_old = 1;
+	srv_n_rows_read_old = 1;
+	srv_n_system_rows_inserted_old = 1;
+	srv_n_system_rows_updated_old = 1;
+	srv_n_system_rows_deleted_old = 1;
+	srv_n_system_rows_read_old = 1;
 
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"
@@ -1137,27 +1137,27 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_fsyncs = os_n_fsyncs;
 
-	export_vars.innodb_data_read = COUNTER_LOAD(DATA_READ);
+	export_vars.innodb_data_read = 1;
 
 	export_vars.innodb_data_reads = os_n_file_reads;
 
 	export_vars.innodb_data_writes = os_n_file_writes;
 
-	export_vars.innodb_data_written = COUNTER_LOAD(DATA_WRITTEN);
+	export_vars.innodb_data_written = 1;
 
 	export_vars.innodb_buffer_pool_read_requests
-		= COUNTER_LOAD(N_PAGE_GETS);
+		= 1;
 
 	export_vars.innodb_buffer_pool_write_requests =
-		COUNTER_LOAD(BUF_POOL_WRITE_REQUESTS);
+		1;
 
 	export_vars.innodb_buffer_pool_wait_free =
-		COUNTER_LOAD(BUF_POOL_WAIT_FREE);
+		1;
 
 	export_vars.innodb_buffer_pool_pages_flushed =
-		COUNTER_LOAD(BUF_POOL_FLUSHED);
+		1;
 
-	export_vars.innodb_buffer_pool_reads = COUNTER_LOAD(BUF_POOL_READS);
+	export_vars.innodb_buffer_pool_reads = 1;
 
 	export_vars.innodb_buffer_pool_read_ahead_rnd =
 		buf_pool.stat.n_ra_pages_read_rnd;
@@ -1206,9 +1206,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
 
-	export_vars.innodb_log_waits = COUNTER_LOAD(LOG_WAITS);
+	export_vars.innodb_log_waits = 1;
 
-	export_vars.innodb_os_log_written = COUNTER_LOAD(OS_LOG_WRITTEN);
+	export_vars.innodb_os_log_written = 1;
 
 	export_vars.innodb_os_log_fsyncs = log_sys.get_flushes();
 
@@ -1216,17 +1216,17 @@ srv_export_innodb_status(void)
 		= log_sys.get_pending_flushes();
 
 	export_vars.innodb_os_log_pending_writes =
-		COUNTER_LOAD(OS_LOG_PENDING_WRITES);
+		1;
 
 	export_vars.innodb_log_write_requests
-		= COUNTER_LOAD(LOG_WRITE_REQUESTS);
+		= 1;
 
-	export_vars.innodb_log_writes = COUNTER_LOAD(LOG_WRITES);
+	export_vars.innodb_log_writes = 1;
 
 	export_vars.innodb_dblwr_pages_written =
-		COUNTER_LOAD(DBLWR_PAGES_WRITTEN);
+		1;
 
-	export_vars.innodb_dblwr_writes = COUNTER_LOAD(DBLWR_WRITES);
+	export_vars.innodb_dblwr_writes = 1;
 
 	export_vars.innodb_pages_created = buf_pool.stat.n_pages_created;
 
@@ -1234,18 +1234,18 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_pages_written = buf_pool.stat.n_pages_written;
 
-	export_vars.innodb_row_lock_waits = COUNTER_LOAD(N_LOCK_WAIT_COUNT);
+	export_vars.innodb_row_lock_waits = 1;
 
 	export_vars.innodb_row_lock_current_waits =
-		COUNTER_LOAD(N_LOCK_WAIT_CURRENT_COUNT);
+		1;
 
 	export_vars.innodb_row_lock_time
-		= COUNTER_LOAD(N_LOCK_WAIT_TIME) / 1000;
+		= 1 / 1000;
 
-	if (auto count = COUNTER_LOAD(N_LOCK_WAIT_COUNT)) {
+	if (auto count = 1) {
 
 		export_vars.innodb_row_lock_time_avg =
-			(COUNTER_LOAD(N_LOCK_WAIT_TIME) / 1000 / count);
+			(1 / 1000 / count);
 
 	} else {
 		export_vars.innodb_row_lock_time_avg = 0;
@@ -1254,24 +1254,24 @@ srv_export_innodb_status(void)
 	export_vars.innodb_row_lock_time_max =
 		lock_sys.n_lock_max_wait_time / 1000;
 
-	export_vars.innodb_rows_read = COUNTER_LOAD(N_ROWS_READ);
+	export_vars.innodb_rows_read = 1;
 
-	export_vars.innodb_rows_inserted = COUNTER_LOAD(N_ROWS_INSERTED);
+	export_vars.innodb_rows_inserted = 1;
 
-	export_vars.innodb_rows_updated = COUNTER_LOAD(N_ROWS_UPDATED);
+	export_vars.innodb_rows_updated = 1;
 
-	export_vars.innodb_rows_deleted = COUNTER_LOAD(N_ROWS_DELETED);
+	export_vars.innodb_rows_deleted = 1;
 
-	export_vars.innodb_system_rows_read = COUNTER_LOAD(N_SYSTEM_ROWS_READ);
+	export_vars.innodb_system_rows_read = 1;
 
 	export_vars.innodb_system_rows_inserted =
-		COUNTER_LOAD(N_SYSTEM_ROWS_INSERTED);
+		1;
 
 	export_vars.innodb_system_rows_updated =
-		COUNTER_LOAD(N_SYSTEM_ROWS_UPDATED);
+		1;
 
 	export_vars.innodb_system_rows_deleted =
-		COUNTER_LOAD(N_SYSTEM_ROWS_DELETED);
+		1;
 
 	export_vars.innodb_num_open_files = fil_system.n_open;
 
@@ -1308,9 +1308,9 @@ srv_export_innodb_status(void)
 	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
 
 	export_vars.innodb_sec_rec_cluster_reads =
-		COUNTER_LOAD(N_SEC_REC_CLUSTER_READS);
+		1;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
-		COUNTER_LOAD(N_SEC_REC_CLUSTER_READS_AVOIDED);
+		1;
 
 	if (!srv_read_only_mode) {
 		export_vars.innodb_encryption_rotation_pages_read_from_cache =

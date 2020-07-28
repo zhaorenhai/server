@@ -3829,14 +3829,11 @@ fil_io(
 
 	if (req_type.is_read()) {
 
-		COUNTER(DATA_READ) += len;
 
 	} else if (req_type.is_write()) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(page_id.space()));
-
-		COUNTER(DATA_WRITTEN) += len;
 	}
 
 	/* Acquire fil_system.mutex and make sure that we can open at

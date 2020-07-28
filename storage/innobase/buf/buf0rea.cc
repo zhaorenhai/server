@@ -457,7 +457,6 @@ read_ahead:
   buf_LRU_stat_inc_io();
 
   buf_pool.stat.n_ra_pages_read_rnd+= count;
-  COUNTER(BUF_POOL_READS) += count;
   return count;
 }
 
@@ -475,11 +474,6 @@ after decryption normal page checksum does not match.
 dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 {
 	dberr_t		err = DB_SUCCESS;
-
-	ulint count = buf_read_page_low(
-		&err, true, BUF_READ_ANY_PAGE, page_id, zip_size, false);
-
-	COUNTER(BUF_POOL_READS) += count;
 
 	if (err == DB_TABLESPACE_DELETED) {
 		ib::info() << "trying to read page " << page_id
@@ -529,8 +523,6 @@ buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync)
 		ib::fatal() << "Error " << err << " in background read of "
 			<< page_id;
 	}
-
-	COUNTER(BUF_POOL_READS) += count;
 
 	/* We do not increment number of I/O operations used for LRU policy
 	here (buf_LRU_stat_inc_io()). We use this in heuristics to decide

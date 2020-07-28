@@ -1125,8 +1125,6 @@ got_no_latch:
 		}
 		mtr->memo_push(block, fix_type);
 
-		COUNTER(N_PAGE_GETS)++;
-
 		rw_lock_s_unlock(&part->latch);
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
@@ -1213,10 +1211,6 @@ fail_and_release_page:
 #ifdef UNIV_SEARCH_PERF_STAT
 	btr_search_n_succ++;
 #endif
-	/* Increment the page get statistics though we did not really
-	fix the page: for user info only */
-	++COUNTER(N_PAGE_GETS);
-
 	if (!ahi_latch) {
 		buf_page_make_young_if_needed(&block->page);
 	}

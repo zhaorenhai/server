@@ -852,8 +852,6 @@ not_found:
 		++flush_failures;
 	}
 
-	COUNTER(BUF_POOL_WAIT_FREE)++;
-
 	n_iterations++;
 
 	goto loop;

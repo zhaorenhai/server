@@ -1720,8 +1720,6 @@ buf_flush_stats(
 			      "from LRU_list %u pages",
 			      unsigned(page_count_flush),
 			      unsigned(page_count_LRU)));
-
-	COUNTER(BUF_POOL_FLUSHED) += page_count_flush + page_count_LRU;
 }
 
 /** Start a buffer flush batch for LRU or flush list

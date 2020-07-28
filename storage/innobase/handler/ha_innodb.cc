@@ -8975,9 +8975,7 @@ ha_innobase::index_read(
 		error = 0;
 		table->status = 0;
 		if (m_prebuilt->table->is_system_db) {
-			COUNTER(N_SYSTEM_ROWS_READ)++;
 		} else {
-			COUNTER(N_ROWS_READ)++;
 		}
 		break;
 
@@ -9232,9 +9230,7 @@ ha_innobase::general_fetch(
 		error = 0;
 		table->status = 0;
 		if (m_prebuilt->table->is_system_db) {
-			COUNTER(N_SYSTEM_ROWS_READ)++;
 		} else {
-			COUNTER(N_ROWS_READ)++;
 		}
 		break;
 	case DB_RECORD_NOT_FOUND:
