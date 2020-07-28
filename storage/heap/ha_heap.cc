@@ -368,7 +368,7 @@ int ha_heap::info(uint flag)
   HEAPINFO hp_info;
 
   if (!table)
-    return 1;
+    return 0;
 
   (void) heap_info(file,&hp_info,flag);
 
@@ -603,16 +603,15 @@ ha_rows ha_heap::records_in_range(uint inx, key_range *min_key,
 }
 
 
-static int
-heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
-                            HP_CREATE_INFO *hp_create_info)
+static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
+                                       HP_CREATE_INFO *hp_create_info)
 {
-  uint key, parts, mem_per_row= 0, keys= table_arg->s->keys;
+  TABLE_SHARE *share= table_arg->s;
+  uint key, parts, mem_per_row= 0, keys= share->keys;
   uint auto_key= 0, auto_key_type= 0;
   ha_rows max_rows;
   HP_KEYDEF *keydef;
   HA_KEYSEG *seg;
-  TABLE_SHARE *share= table_arg->s;
   bool found_real_auto_increment= 0;
 
   bzero(hp_create_info, sizeof(*hp_create_info));
@@ -620,11 +619,11 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;
 
-  if (!(keydef= (HP_KEYDEF*) my_malloc(keys * sizeof(HP_KEYDEF) +
-				       parts * sizeof(HA_KEYSEG),
-				       MYF(MY_WME | MY_THREAD_SPECIFIC))))
+  if (!my_multi_malloc(MYF(MY_WME | MY_THREAD_SPECIFIC),
+                       &keydef, keys * sizeof(HP_KEYDEF),
+                       &seg, parts * sizeof(HA_KEYSEG),
+                       NULL))
     return my_errno;
-  seg= reinterpret_cast<HA_KEYSEG*>(keydef + keys);
   for (key= 0; key < keys; key++)
   {
     KEY *pos= table_arg->key_info+key;
