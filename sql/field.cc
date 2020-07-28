@@ -1500,7 +1500,7 @@ bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
-                     uint8 dec_arg, bool zero_arg, bool unsigned_arg)
+                     decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg),
   dec(dec_arg),zerofill(zero_arg),unsigned_flag(unsigned_arg)
@@ -1835,12 +1835,12 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg), invisible(VISIBLE),
+  :ptr(ptr_arg),
   null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), part_of_sortkey(0),
-  unireg_check(unireg_check_arg), field_length(length_arg),
+   unireg_check(unireg_check_arg), invisible(VISIBLE), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
   default_value(0)
@@ -3253,7 +3253,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      uchar null_bit_arg,
                                      enum utype unireg_check_arg,
                                      const LEX_CSTRING *field_name_arg,
-                                     uint8 dec_arg,bool zero_arg,
+                                     decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
              unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
@@ -10566,24 +10566,24 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 
 Column_definition_attributes::Column_definition_attributes(const Field *field)
  :length(field->character_octet_length() / field->charset()->mbmaxlen),
-  decimals(field->decimals()),
-  unireg_check(field->unireg_check),
   interval(NULL),
   charset(field->charset()), // May be NULL ptr
   srid(0),
-  pack_flag(0)
+  pack_flag(0),
+  unireg_check(field->unireg_check),
+  decimals(field->decimals())
 {}
 
 
 Column_definition_attributes::
   Column_definition_attributes(const Type_all_attributes &attr)
  :length(attr.max_length),
-  decimals(attr.decimals),
-  unireg_check(Field::NONE),
   interval(attr.get_typelib()),
   charset(attr.collation.collation),
   srid(0),
-  pack_flag(attr.unsigned_flag ? 0 : FIELDFLAG_DECIMAL)
+  pack_flag(attr.unsigned_flag ? 0 : FIELDFLAG_DECIMAL),
+  unireg_check(Field::NONE),
+  decimals(attr.decimals)
 {}
 
 
