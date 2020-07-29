@@ -1,5 +1,5 @@
 /* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2019, MariaDB Corporation.
+   Copyright (c) 2019, 2020 MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -55,161 +55,37 @@
 #include "my_global.h"
 #include "my_rdtsc.h"
 
+#include <chrono>
+
 #if defined(_WIN32)
-#include <stdio.h>
 #include "windows.h"
-#else
-#include <stdio.h>
-#endif
-
-#if !defined(_WIN32)
-#if TIME_WITH_SYS_TIME
-#include <sys/time.h>
-#include <time.h>           /* for clock_gettime */
-#else
-#if HAVE_SYS_TIME_H
-#include <sys/time.h>
-#elif defined(HAVE_TIME_H)
-#include <time.h>
-#endif
-#endif
-#endif
-
-#if defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
-#include <sys/timeb.h>       /* for ftime */
 #endif
 
 #if defined(HAVE_SYS_TIMES_H) && defined(HAVE_TIMES)
 #include <sys/times.h>       /* for times */
 #endif
 
-#if defined(__APPLE__) && defined(__MACH__)
-#include <mach/mach_time.h>
-#endif
-
-/*
-  For nanoseconds, most platforms have nothing available that
-  (a) doesn't require bringing in a 40-kb librt.so library
-  (b) really has nanosecond resolution.
-*/
+using Clock= std::chrono::system_clock;
 
 ulonglong my_timer_nanoseconds(void)
 {
-#if defined(HAVE_READ_REAL_TIME)
-  {
-    timebasestruct_t tr;
-    read_real_time(&tr, TIMEBASE_SZ);
-    return (ulonglong) tr.tb_high * 1000000000 + (ulonglong) tr.tb_low;
-  }
-#elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
-  /* SunOS 5.10+, Solaris, HP-UX: hrtime_t gethrtime(void) */
-  return (ulonglong) gethrtime();
-#elif defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_REALTIME)
-  {
-    struct timespec tp;
-    clock_gettime(CLOCK_REALTIME, &tp);
-    return (ulonglong) tp.tv_sec * 1000000000 + (ulonglong) tp.tv_nsec;
-  }
-#elif defined(__APPLE__) && defined(__MACH__)
-  {
-    ulonglong tm;
-    static mach_timebase_info_data_t timebase_info= {0,0};
-    if (timebase_info.denom == 0)
-      (void) mach_timebase_info(&timebase_info);
-    tm= mach_absolute_time();
-    return (tm * timebase_info.numer) / timebase_info.denom;
-  }
-#else
-  return 0;
-#endif
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+             Clock::now().time_since_epoch())
+      .count();
 }
-
-/*
-  For microseconds, gettimeofday() is available on
-  almost all platforms. On Windows we use
-  QueryPerformanceCounter which will usually tick over
-  3.5 million times per second, and we don't throw
-  away the extra precision. (On Windows Server 2003
-  the frequency is same as the cycle frequency.)
-*/
 
 ulonglong my_timer_microseconds(void)
 {
-#if defined(HAVE_GETTIMEOFDAY)
-  {
-    static ulonglong last_value= 0;
-    struct timeval tv;
-    if (gettimeofday(&tv, NULL) == 0)
-      last_value= (ulonglong) tv.tv_sec * 1000000 + (ulonglong) tv.tv_usec;
-    else
-    {
-      /*
-        There are reports that gettimeofday(2) can have intermittent failures
-        on some platform, see for example Bug#36819.
-        We are not trying again or looping, just returning the best value possible
-        under the circumstances ...
-      */
-      last_value++;
-    }
-    return last_value;
-  }
-#elif defined(_WIN32)
-  {
-    /* QueryPerformanceCounter usually works with about 1/3 microsecond. */
-    LARGE_INTEGER t_cnt;
-
-    QueryPerformanceCounter(&t_cnt);
-    return (ulonglong) t_cnt.QuadPart;
-  }
-#else
-  return 0;
-#endif
+  return std::chrono::duration_cast<std::chrono::microseconds>(
+             Clock::now().time_since_epoch())
+      .count();
 }
-
-/*
-  For milliseconds, we use ftime() if it's supported
-  or time()*1000 if it's not. With modern versions of
-  Windows and with HP Itanium, resolution is 10-15
-  milliseconds.
-*/
-
-#if defined(HAVE_CLOCK_GETTIME)
-#if defined(CLOCK_MONOTONIC_FAST)
-/* FreeBSD */
-#define MY_CLOCK_ID CLOCK_MONOTONIC_FAST
-#elif defined(CLOCK_MONOTONIC_COARSE)
-/* Linux */
-#define MY_CLOCK_ID CLOCK_MONOTONIC_COARSE
-#elif defined(CLOCK_MONOTONIC)
-/* POSIX (includes OSX) */
-#define MY_CLOCK_ID CLOCK_MONOTONIC
-#elif defined(CLOCK_REALTIME)
-/* Solaris (which doesn't seem to have MONOTONIC) */
-#define MY_CLOCK_ID CLOCK_REALTIME
-#endif
-#endif
 
 ulonglong my_timer_milliseconds(void)
 {
-#if defined(MY_CLOCK_ID)
-  struct timespec tp;
-  clock_gettime(MY_CLOCK_ID, &tp);
-  return (ulonglong)tp.tv_sec * 1000 + (ulonglong)tp.tv_nsec / 1000000;
-#elif defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
-  /* ftime() is obsolete but maybe the platform is old */
-  struct timeb ft;
-  ftime(&ft);
-  return (ulonglong)ft.time * 1000 + (ulonglong)ft.millitm;
-#elif defined(HAVE_TIME)
-  return (ulonglong) time(NULL) * 1000;
-#elif defined(_WIN32)
-   FILETIME ft;
-   GetSystemTimeAsFileTime( &ft );
-   return ((ulonglong)ft.dwLowDateTime +
-                  (((ulonglong)ft.dwHighDateTime) << 32))/10000;
-#else
-  return 0;
-#endif
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             Clock::now().time_since_epoch())
+      .count();
 }
 
 /*
@@ -398,17 +274,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* nanoseconds */
   mti->nanoseconds.frequency=  1000000000; /* initial assumption */
-#if defined(HAVE_READ_REAL_TIME)
-  mti->nanoseconds.routine= MY_TIMER_ROUTINE_READ_REAL_TIME;
-#elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
-  mti->nanoseconds.routine= MY_TIMER_ROUTINE_GETHRTIME;
-#elif defined(HAVE_CLOCK_GETTIME)
-  mti->nanoseconds.routine= MY_TIMER_ROUTINE_CLOCK_GETTIME;
-#elif defined(__APPLE__) && defined(__MACH__)
-  mti->nanoseconds.routine= MY_TIMER_ROUTINE_MACH_ABSOLUTE_TIME;
-#else
-  mti->nanoseconds.routine= 0;
-#endif
+  mti->nanoseconds.routine= MY_TIMER_ROUTINE_STD_CHRONO;
+
   if (!mti->nanoseconds.routine || !my_timer_nanoseconds())
   {
     mti->nanoseconds.routine= 0;
@@ -419,23 +286,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* microseconds */
   mti->microseconds.frequency= 1000000; /* initial assumption */
-#if defined(HAVE_GETTIMEOFDAY)
-   mti->microseconds.routine= MY_TIMER_ROUTINE_GETTIMEOFDAY;
-#elif defined(_WIN32)
-  {
-    LARGE_INTEGER li;
-    /* Windows: typical frequency = 3579545, actually 1/3 microsecond. */
-    if (!QueryPerformanceFrequency(&li))
-      mti->microseconds.routine= 0;
-    else
-    {
-      mti->microseconds.frequency= li.QuadPart;
-      mti->microseconds.routine= MY_TIMER_ROUTINE_QUERYPERFORMANCECOUNTER;
-    }
-  }
-#else
-  mti->microseconds.routine= 0;
-#endif
+  mti->microseconds.routine= MY_TIMER_ROUTINE_STD_CHRONO;
+
   if (!mti->microseconds.routine || !my_timer_microseconds())
   {
     mti->microseconds.routine= 0;
@@ -446,17 +298,8 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
   /* milliseconds */
   mti->milliseconds.frequency= 1000; /* initial assumption */
-#ifdef MY_CLOCK_ID
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_CLOCK_GETTIME;
-#elif defined(HAVE_SYS_TIMEB_H) && defined(HAVE_FTIME)
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_FTIME;
-#elif defined(_WIN32)
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME;
-#elif defined(HAVE_TIME)
-  mti->milliseconds.routine= MY_TIMER_ROUTINE_TIME;
-#else
-  mti->milliseconds.routine= 0;
-#endif
+  mti->milliseconds.routine= MY_TIMER_ROUTINE_STD_CHRONO;
+
   if (!mti->milliseconds.routine || !my_timer_milliseconds())
   {
     mti->milliseconds.routine= 0;
@@ -490,14 +333,7 @@ void my_timer_init(MY_TIMER_INFO *mti)
   if (mti->cycles.routine)
     best_timer= &my_timer_cycles;
   else
-  {
-    if (mti->nanoseconds.routine)
-    {
-      best_timer= &my_timer_nanoseconds;
-    }
-    else
-      best_timer= &my_timer_microseconds;
-  }
+    best_timer= &my_timer_nanoseconds;
 
   /* best_timer_overhead = least of 20 calculations */
   for (i= 0, best_timer_overhead= 1000000000; i < 20; ++i)
@@ -533,71 +369,45 @@ void my_timer_init(MY_TIMER_INFO *mti)
                            &my_timer_ticks,
                            best_timer_overhead);
 
-/*
-  Calculate resolution for nanoseconds or microseconds
-  or milliseconds, by seeing if it's always divisible
-  by 1000, and by noticing how much jumping occurs.
-  For ticks, just assume the resolution is 1.
-*/
+  /*
+    Calculate resolution for nanoseconds or microseconds
+    or milliseconds, by seeing if it's always divisible
+    by 1000, and by noticing how much jumping occurs.
+    For ticks, just assume the resolution is 1.
+  */
   if (mti->cycles.routine)
     mti->cycles.resolution= 1;
-  if (mti->nanoseconds.routine)
-    mti->nanoseconds.resolution=
-    my_timer_init_resolution(&my_timer_nanoseconds, 20000);
-  if (mti->microseconds.routine)
-    mti->microseconds.resolution=
-    my_timer_init_resolution(&my_timer_microseconds, 20);
-  if (mti->milliseconds.routine)
-  {
-    if (mti->milliseconds.routine == MY_TIMER_ROUTINE_TIME)
-      mti->milliseconds.resolution= 1000;
-    else
-      mti->milliseconds.resolution=
+  mti->nanoseconds.resolution=
+      my_timer_init_resolution(&my_timer_nanoseconds, 20000);
+  mti->microseconds.resolution=
+      my_timer_init_resolution(&my_timer_microseconds, 20);
+  mti->milliseconds.resolution=
       my_timer_init_resolution(&my_timer_milliseconds, 0);
-  }
   if (mti->ticks.routine)
     mti->ticks.resolution= 1;
 
 /*
-  Calculate cycles frequency,
-  if we have both a cycles routine and a microseconds routine.
-  In tests, this usually results in a figure within 2% of
-  what "cat /proc/cpuinfo" says.
-  If the microseconds routine is QueryPerformanceCounter
-  (i.e. it's Windows), and the microseconds frequency is >
-  500,000,000 (i.e. it's Windows Server so it uses RDTSC)
-  and the microseconds resolution is > 100 (i.e. dreadful),
-  then calculate cycles frequency = microseconds frequency.
-*/
-  if (mti->cycles.routine
-  &&  mti->microseconds.routine)
+  Calculate cycles frequency, if we have a cycles routine*/
+  if (mti->cycles.routine)
   {
-    if (mti->microseconds.routine ==
-    MY_TIMER_ROUTINE_QUERYPERFORMANCECOUNTER
-    &&  mti->microseconds.frequency > 500000000
-    &&  mti->microseconds.resolution > 100)
-      mti->cycles.frequency= mti->microseconds.frequency;
+    time1= my_timer_init_frequency(mti);
+    /* Repeat once in case there was an interruption. */
+    time2= my_timer_init_frequency(mti);
+    if (time1 < time2)
+      mti->cycles.frequency= time1;
     else
-    {
-      time1= my_timer_init_frequency(mti);
-      /* Repeat once in case there was an interruption. */
-      time2= my_timer_init_frequency(mti);
-      if (time1 < time2) mti->cycles.frequency= time1;
-      else mti->cycles.frequency= time2;
-    }
+      mti->cycles.frequency= time2;
   }
 
 /*
   Calculate milliseconds frequency =
   (cycles-frequency/#-of-cycles) * #-of-milliseconds,
-  if we have both a milliseconds routine and a cycles
-  routine.
+  if we have a cycles routine.
   This will be inaccurate if milliseconds resolution > 1.
   This is probably only useful when testing new platforms.
 */
   if (mti->milliseconds.routine
   &&  mti->milliseconds.resolution < 1000
-  &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
     ulonglong time3, time4;
@@ -617,12 +427,10 @@ void my_timer_init(MY_TIMER_INFO *mti)
 /*
   Calculate ticks.frequency =
   (cycles-frequency/#-of-cycles * #-of-ticks,
-  if we have both a ticks routine and a cycles
-  routine,
+  if we have both a cycles routine,
   This is probably only useful when testing new platforms.
 */
   if (mti->ticks.routine
-  &&  mti->microseconds.routine
   &&  mti->cycles.routine)
   {
     ulonglong time3, time4;
@@ -714,40 +522,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
 
    Some comments on the many candidate routines for timing ...
 
-   clock() -- We don't use because it would overflow frequently.
-
-   clock_gettime() -- In tests, clock_gettime often had
-   resolution = 1000.
-
-   ftime() -- A "man ftime" says: "This function is obsolete.
-   Don't use it." On every platform that we tested, if ftime()
-   was available, then so was gettimeofday(), and gettimeofday()
-   overhead was always at least as good as ftime() overhead.
-
-   gettimeofday() -- available on most platforms, though not
-   on Windows. There is a hardware timer (sometimes a Programmable
-   Interrupt Timer or "PIT") (sometimes a "HPET") used for
-   interrupt generation. When it interrupts (a "tick" or "jiffy",
-   typically 1 centisecond) it sets xtime. For gettimeofday, a
-   Linux kernel routine usually gets xtime and then gets rdtsc
-   to get elapsed nanoseconds since the last tick. On Red Hat
-   Enterprise Linux 3, there was once a bug which caused the
-   resolution to be 1000, i.e. one centisecond. We never check
-   for time-zone change.
-
-   getnstimeofday() -- something to watch for in future Linux
-
-   do_gettimeofday() -- exists on Linux but not for "userland"
-
-   get_cycles() -- a multi-platform function, worth watching
-   in future Linux versions. But we found platform-specific
-   functions which were better documented in operating-system
-   manuals. And get_cycles() can fail or return a useless
-   32-bit number. It might be available on some platforms,
-   such as arm, which we didn't test.  Using
-   "include <linux/timex.h>" or "include <asm/timex.h>"
-   can lead to autoconf or compile errors, depending on system.
-
    __rdtsc(): available for IA-32 and AMD64.
    See "possible flaws and dangers" comments.
 
@@ -774,18 +548,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
    However, we don't expect it to overflow every 49 days, so we
    will prefer it for my_timer_milliseconds().)
 
-   QueryPerformanceCounter() we use this for my_timer_microseconds()
-   on Windows. 1-PIT-tick (often 1/3-microsecond). Usually reads
-   the PIT so it's slow. On some Windows variants, uses RDTSC.
-
-   GetLocalTime() this is available on Windows but we don't use it.
-
-   getclock(): documented for Alpha, but not found during tests.
-
-   mach_absolute_time() and UpTime() are recommended for Apple.
-   Initially they weren't tried, because ppc_get_timebase seems to do the job.
-   But now we use mach_absolute_time for nanoseconds.
-
    Any clock-based timer can be affected by NPT (ntpd program),
    which means:
    - full-second correction can occur for leap second
@@ -801,10 +563,6 @@ void my_timer_init(MY_TIMER_INFO *mti)
    Do not expect any of our timers to be monotonic; we
    won't guarantee that they return constantly-increasing
    unique numbers.
-
-   We tested with AIX, Solaris (x86 + Sparc), Linux (x86 +
-   Itanium), Windows, 64-bit Windows, QNX, FreeBSD, HPUX,
-   Irix, Mac. We didn't test with SCO.
 
 */
 
