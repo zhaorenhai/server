@@ -59,15 +59,19 @@ ENDIF()
 
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
-    IF(WITHOUT_SERVER AND (script STREQUAL "wsrep_notify"))
-    ELSE()
-      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
-                     ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
-      INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
-        DESTINATION ${inst_location} COMPONENT Server_Scripts)
-    ENDIF()
+  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure)
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
+                   ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
+    INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
+            DESTINATION ${inst_location} COMPONENT Server_Scripts)
   ENDFOREACH()
+
+  IF(NOT WITHOUT_SERVER)
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep_notify.sh
+                   ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify @ONLY )
+    INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify
+            DESTINATION ${inst_location} COMPONENT Server_Scripts)
+  ENDIF()
 
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
