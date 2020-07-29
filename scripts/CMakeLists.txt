@@ -29,7 +29,7 @@ IF(NOT WIN32 OR CMAKE_CROSSCOMPILING)
 ENDIF()
 
 IF(CAT_EXECUTABLE)
-  SET(CAT_COMMAND COMMAND 
+  SET(CAT_COMMAND COMMAND
     ${CMAKE_COMMAND} -E chdir  ${CMAKE_CURRENT_SOURCE_DIR}
     ${CAT_EXECUTABLE} mysql_system_tables.sql mysql_system_tables_fix.sql mysql_performance_tables.sql >
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables.sql
@@ -248,7 +248,7 @@ SET(mysql_setpermission_COMPONENT COMPONENT Client)
 SET(mytop_COMPONENT Mytop)
 
 IF(WIN32)
-  # On Windows, some .sh and some .pl.in files are configured 
+  # On Windows, some .sh and some .pl.in files are configured
   # The resulting files will have .pl extension (those are perl scripts)
 
   # Input files with pl.in extension
@@ -273,6 +273,7 @@ IF(WIN32)
     INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/${file}.pl COMPONENT Server_Scripts)
   ENDFOREACH()
 ELSE()
+  # Check for WITHOUT_SERVER done in config.h.cmake
   IF(WITH_WSREP)
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
@@ -362,7 +363,7 @@ ELSE()
       SET(${file}_COMPONENT Server)
     ENDIF()
     INSTALL_SCRIPT(
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} 
+      ${CMAKE_CURRENT_BINARY_DIR}/${file}
       DESTINATION ${INSTALL_BINDIR}
       COMPONENT ${${file}_COMPONENT}
      )
