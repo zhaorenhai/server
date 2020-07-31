@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 connection node_2;
 connection node_1;
+||||||| b75563cdfd1
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+=======
+>>>>>>> origin/10.3~2
 connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
 connection node_1;

@@ -11,11 +11,19 @@
 #
 
 --source include/galera_cluster.inc
+<<<<<<< HEAD
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 
 --let $datadir= `SELECT @@datadir`
 
+||||||| b75563cdfd1
+=======
+--source include/have_innodb.inc
+
+--let $datadir= `SELECT @@datadir`
+
+>>>>>>> origin/10.3~2
 
 # Open a separate connection to be used to run SHOW PROCESSLIST
 --let $galera_connection_name = node_1a
