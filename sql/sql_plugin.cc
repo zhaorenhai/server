@@ -2327,7 +2327,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
   else if (!plugin)
   {
     const myf MyFlags= thd->lex->if_exists() ? ME_NOTE : 0;
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
+    my_error(ER_SP_DOES_NOT_EXIST, MyFlags, "PLUGIN", name->str);
     return !MyFlags;
   }
   return 0;
