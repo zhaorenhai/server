@@ -7727,7 +7727,6 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                  bool is_com_multi,
                  bool is_next_command)
 {
-  int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on(););
 
@@ -7807,6 +7806,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  (char *) thd->security_ctx->host_or_ip,
                                  0);
 
+          int error __attribute__((unused));
           error= mysql_execute_command(thd);
           MYSQL_QUERY_EXEC_DONE(error);
 	}
