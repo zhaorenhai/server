@@ -2190,8 +2190,8 @@ Type_handler::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
 {
   return new(mem_root)
          Field_double(NULL, item->max_length,
-                      (uchar *) (item->maybe_null ? "" : 0),
-                      item->maybe_null ? 1 : 0, Field::NONE,
+                      (uchar *) (item->maybe_null() ? "" : 0),
+                      item->maybe_null() ? 1 : 0, Field::NONE,
                       &item->name, (uint8) item->decimals,
                       0, item->unsigned_flag);
 }
@@ -2204,8 +2204,8 @@ Type_handler_float::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
 {
   return new(mem_root)
          Field_float(NULL, item->max_length,
-                     (uchar *) (item->maybe_null ? "" : 0),
-                     item->maybe_null ? 1 : 0, Field::NONE,
+                     (uchar *) (item->maybe_null() ? "" : 0),
+                     item->maybe_null() ? 1 : 0, Field::NONE,
                      &item->name, (uint8) item->decimals,
                      0, item->unsigned_flag);
 }
@@ -2220,8 +2220,8 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
   DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
   return new (mem_root)
          Field_new_decimal(NULL, item->max_length,
-                           (uchar *) (item->maybe_null ? "" : 0),
-                           item->maybe_null ? 1 : 0, Field::NONE,
+                           (uchar *) (item->maybe_null() ? "" : 0),
+                           item->maybe_null() ? 1 : 0, Field::NONE,
                            &item->name, (uint8) item->decimals,
                            0, item->unsigned_flag);
 }
@@ -2238,8 +2238,8 @@ Type_handler_int_result::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
   */
   return new(mem_root)
          Field_longlong(NULL, item->max_length,
-                        (uchar *) (item->maybe_null ? "" : 0),
-                        item->maybe_null ? 1 : 0, Field::NONE,
+                        (uchar *) (item->maybe_null() ? "" : 0),
+                        item->maybe_null() ? 1 : 0, Field::NONE,
                         &item->name, 0, item->unsigned_flag);
 }
 
@@ -4622,7 +4622,7 @@ bool Type_handler_temporal_result::
     set_if_bigger(func->decimals, deci);
   }
 
-  if (rc || func->maybe_null)
+  if (rc || func->maybe_null())
     return rc;
   /*
     LEAST/GREATES(non-temporal, temporal) can return NULL.
@@ -4645,7 +4645,7 @@ bool Type_handler_temporal_result::
       continue; // No conversion.
     if (ha->cmp_type() != TIME_RESULT)
     {
-      func->maybe_null= true; // Conversion from non-temporal is not safe
+      func->flags|= ITEM_FLAG_MAYBE_NULL; // Conversion from non-temporal is not safe
       break;
     }
     timestamp_type tf= hf->mysql_timestamp_type();
@@ -4700,7 +4700,7 @@ bool Type_handler_temporal_result::
     DBUG_ASSERT(hf->field_type() == MYSQL_TYPE_DATETIME);
     if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST))
       continue;
-    func->maybe_null= true;
+    func->flags|= ITEM_FLAG_MAYBE_NULL;
     break;
   }
   return rc;
@@ -6477,7 +6477,7 @@ bool Type_handler::
             item->arguments()[0]->time_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
-  item->maybe_null= true;
+  item->flags|= ITEM_FLAG_MAYBE_NULL;
   return false;
 }
 
@@ -6486,7 +6486,7 @@ bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
   item->fix_attributes_temporal(MAX_DATE_WIDTH, 0);
-  item->maybe_null= true;
+  item->flags|= ITEM_FLAG_MAYBE_NULL;
   return false;
 }
 
@@ -6499,7 +6499,7 @@ bool Type_handler::
             item->arguments()[0]->datetime_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
-  item->maybe_null= true;
+  item->flags|= ITEM_FLAG_MAYBE_NULL;
   return false;
 }
 
