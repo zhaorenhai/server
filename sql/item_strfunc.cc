@@ -831,7 +831,10 @@ String *Item_func_des_decrypt::val_str(String *str)
     return 0;
   length= res->length();
   if (length < 9 || (length % 8) != 1 || !((*res)[0] & 128))
+  {
+    res->set_charset(&my_charset_bin);
     return res;				// Skip decryption if not encrypted
+  }
 
   if (arg_count == 1)			// If automatic uncompression
   {
