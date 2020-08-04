@@ -737,3 +737,16 @@ DROP FUNCTION test_function;
 SET @@sql_mode= @org_mode;
 
 #End of Test for Bug#12601974 
+#
+# 10.1 TEST
+#
+# MDEV-23209: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed in Diagnostics_area::set_ok_status on INSERT
+#
+set @old_mode= @@sql_mode;
+SET SQL_MODE='STRICT_TRANS_TABLES';
+CREATE TABLE t (a DOUBLE PRIMARY KEY AUTO_INCREMENT);
+INSERT INTO t VALUES (18446744073709551601);
+ERROR 22007: Truncated incorrect INTEGER value: '1.8446744073709552e19'
+SET @@sql_mode=@old_mode;
+DROP TABLE t;

@@ -513,3 +513,20 @@ SET @@sql_mode= @org_mode;
 
 --echo 
 --echo #End of Test for Bug#12601974 
+
+--echo #
+--echo # 10.1 TEST
+--echo #
+--echo # MDEV-23209: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status on INSERT
+--echo #
+set @old_mode= @@sql_mode;
+
+SET SQL_MODE='STRICT_TRANS_TABLES';
+CREATE TABLE t (a DOUBLE PRIMARY KEY AUTO_INCREMENT);
+
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t VALUES (18446744073709551601);
+
+SET @@sql_mode=@old_mode;
+DROP TABLE t;
