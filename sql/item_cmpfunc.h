@@ -443,8 +443,6 @@ public:
 };
 
 
-bool sel_tree_non_empty(SEL_TREE *tree);
-
 /**
   A class for functions and operators that can use the range optimizer and
   have a reverse function/operator that can also use the range optimizer,
@@ -502,8 +500,6 @@ public:
     if (!(ftree= get_full_func_mm_tree_for_args(param, args[0], args[1])) &&
         !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])))
       ftree= Item_func::get_mm_tree(param, cond_ptr);
-    if (sel_tree_non_empty(ftree))
-      n_selectivity_estimates++;
     DBUG_RETURN(ftree);
   }
 };
@@ -2552,9 +2548,6 @@ public:
     if (!ftree)
       ftree= Item_func::get_mm_tree(param, cond_ptr);
 
-    if (sel_tree_non_empty(ftree))
-      n_selectivity_estimates++;
-
     DBUG_RETURN(ftree);
   }
   CHARSET_INFO *compare_collation() const
@@ -2809,6 +2802,7 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
+  bool is_item_selectivity_covered(void *arg);
 };
 
 

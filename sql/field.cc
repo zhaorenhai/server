@@ -37,7 +37,6 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-#include "sql_statistics.h"
 
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024

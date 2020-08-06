@@ -61,3 +61,62 @@ ANALYZE SELECT * from t1  WHERE t1.b > 3 OR t1.a=t1.b;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 DROP TABLE t1;
+
+--echo #
+--echo # Tests with simple predicates
+--echo #
+
+CREATE TABLE t1(a INT, b INT, c VARCHAR(10), KEY(a), KEY(b));
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_10;
+
+--echo #
+--echo # Tests with LIKE PREDICATES
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '%2%';
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '2%';
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with NULL predicates
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a IS NULL;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE t1.a IS NOT NULL;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with </<=/>/>=/BETWEEN
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE 5 < t1.a;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE t1.a >= 10 and t1.b <= 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE  t1.a BETWEEN 1 AND 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE  5 BETWEEN 1 AND t1.a;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE  1 BETWEEN t1.a AND t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with IN predicate
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a IN (1,2,3);
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE  t1.a=t1.b AND (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE t1.a=t1.b AND (abs(t1.a),t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate')) FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;

@@ -193,7 +193,17 @@ typedef struct same_field
     FALSE: Otherwise
   */
   bool present_in_equalities;
+  /*
+    The item_equal instance the field belongs to
+  */
   Item_equal *item_eq;
+  /*
+    TRUE : statistics available for the field via keys or EITS
+    FALSE: otherwise
+
+    @see Item_field::is_item_selectivity_covered
+  */
+  bool is_statistics_available;
 }SAME_FIELD;
 
 /*
@@ -1804,7 +1814,6 @@ public:
   bool transform_in_predicates_into_in_subq(THD *thd);
 
   bool all_selectivity_accounted_for_join_cardinality();
-  bool is_present_in_multiple_equalities(Field *field);
 
 private:
   /**
@@ -2567,5 +2576,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               List<Item_equal> *new_equalities,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
+bool is_sargable_predicate(Item *item, Item *value, void *arg);
 
 #endif /* SQL_SELECT_INCLUDED */

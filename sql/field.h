@@ -484,6 +484,7 @@ inline uint get_set_pack_length(int elements)
   uint len= (elements + 7) / 8;
   return len > 4 ? 8 : len;
 }
+bool is_eits_usable(Field* field);
 
 
 /**

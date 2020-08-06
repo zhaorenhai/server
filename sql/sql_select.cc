@@ -29383,7 +29383,7 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
     Item *item;
     while ((item= li++))
     {
-      SAME_FIELD arg= {NULL, this, FALSE, NULL};
+      SAME_FIELD arg= {NULL, this, FALSE, NULL, FALSE};
       if (item->walk(&Item::is_item_selectivity_covered, 0, &arg))
         return false;
     }
@@ -29391,32 +29391,33 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
   }
   else
   {
-    SAME_FIELD arg= {NULL, this, FALSE, NULL};
+    SAME_FIELD arg= {NULL, this, FALSE, NULL, FALSE};
     return !conds->walk(&Item::is_item_selectivity_covered, 0, &arg);
   }
 }
 
-
 /*
-  @brief Check if a field is present in multiple equalities
+  @brief
+    Checks if the predicate is a sargable predicate or not
 
+  @details
+    Sargable predicate is defined as the form of field op const
+    where op can be operators like </<=/=/>/>=/BETWEEN etc.
+    Also the field should be covered by an index or EITS.
   @retval
-    TRUE    Field found in multiple equalities
-    FALSE   OTHERWISE
+    TRUE  : Sargable predicate
+    FALSE : Otherwise
 */
-
-bool JOIN::is_present_in_multiple_equalities(Field *field)
+bool is_sargable_predicate(Item *item, Item *value, void *arg)
 {
-  if (!cond_equal || !cond_equal->current_level.elements)
+  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
+  if (!field_arg->is_statistics_available)
     return false;
 
-  Item_equal *item_equal;
-  List_iterator_fast<Item_equal> it(cond_equal->current_level);
-  while ((item_equal= it++))
-  {
-    if (item_equal->contains(field))
-      return true;
-  }
+  Item *field= item->real_item();
+  if (field->type() == Item::FIELD_ITEM && !field->const_item() &&
+      (!value || !value->is_expensive()))
+    return true;
   return false;
 }
 

@@ -2110,9 +2110,23 @@ bool Item_func_between::count_sargable_conds(void *arg)
 
 bool Item_func_between::is_item_selectivity_covered(void *arg)
 {
-  if (n_selectivity_estimates)
-    return false;
-  return true;
+  if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    if (is_sargable_predicate(args[0], args[1], arg) &&
+        is_sargable_predicate(args[0], args[2], arg))
+      return false;
+    return true;
+  }
+
+  for (uint i= 1 ; i < arg_count ; i++)
+  {
+    if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
+    {
+      if (!is_sargable_predicate(args[i], args[0], arg))
+        return true;
+    }
+  }
+  return false;
 }
 
 
@@ -4300,9 +4314,14 @@ bool Item_func_in::count_sargable_conds(void *arg)
 
 bool Item_func_in::is_item_selectivity_covered(void *arg)
 {
-  if (n_selectivity_estimates)
+  if (const_item())
     return false;
-  return true;
+
+  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
+  if (!field_arg->is_statistics_available)
+    return true;
+  all_items_are_consts(args + 1, arg_count - 1);
+  return false;
 }
 
 
@@ -5504,7 +5523,10 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 
 bool Item_func_null_predicate::is_item_selectivity_covered(void *arg)
 {
-  if (n_selectivity_estimates)
+  if (const_item())
+    return false;
+
+  if (is_sargable_predicate(args[0], NULL, arg))
     return false;
   return true;
 }
@@ -5594,7 +5616,11 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
 
 bool Item_bool_func2::is_item_selectivity_covered(void *arg)
 {
-  if (n_selectivity_estimates)
+  if (const_item())
+    return false;
+
+  if (is_sargable_predicate(args[0], args[1], arg) ||
+      is_sargable_predicate(args[1], args[0], arg))
     return false;
   return true;
 }
@@ -5696,16 +5722,24 @@ SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   param->thd->mem_root= param->old_root;
   bool sargable_pattern= with_sargable_pattern();
   param->thd->mem_root= tmp_root;
-  SEL_TREE *tree;
-  tree= sargable_pattern ?
-        Item_bool_func2::get_mm_tree(param, cond_ptr) :
-        Item_func::get_mm_tree(param, cond_ptr);
+  return sargable_pattern ?
+         Item_bool_func2::get_mm_tree(param, cond_ptr) :
+         Item_func::get_mm_tree(param, cond_ptr);
+}
 
-  if (sel_tree_non_empty(tree))
-    n_selectivity_estimates++;
 
-  return tree;
+bool Item_func_like::is_item_selectivity_covered(void *arg)
+{
+  if (const_item())
+    return false;
 
+  if (with_sargable_pattern())
+  {
+    if (is_sargable_predicate(args[0], args[1], arg) ||
+        is_sargable_predicate(args[1], args[0], arg))
+      return false;
+  }
+  return true;
 }
 
 
