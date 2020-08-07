@@ -17,7 +17,7 @@
 #
 # Galera library does not compile with windows
 #
-IF(UNIX)
+IF(UNIX AND NOT WITHOUT_SERVER)
   SET(with_wsrep_default ON)
 ELSE()
   SET(with_wsrep_default OFF)
