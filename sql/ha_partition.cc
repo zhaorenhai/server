@@ -9919,9 +9919,9 @@ void ha_partition::append_row_to_str(String &str)
     for (; key_part != key_part_end; key_part++)
     {
       Field *field= key_part->field;
-      str.append(" ");
+      str.append(' ');
       str.append(&field->field_name);
-      str.append(":");
+      str.append(':');
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
@@ -9939,9 +9939,9 @@ void ha_partition::append_row_to_str(String &str)
          field_ptr++)
     {
       Field *field= *field_ptr;
-      str.append(" ");
+      str.append(' ');
       str.append(&field->field_name);
-      str.append(":");
+      str.append(':');
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
@@ -9979,14 +9979,14 @@ void ha_partition::print_error(int error, myf errflag)
       String str(buf,sizeof(buf),system_charset_info);
       uint32 part_id;
       str.length(0);
-      str.append("(");
+      str.append('(');
       str.append_ulonglong(m_last_part);
-      str.append(" != ");
+      str.append(STRING_WITH_LEN(" != "));
       if (get_part_for_buf(m_err_rec, m_rec0, m_part_info, &part_id))
-        str.append("?");
+        str.append('?');
       else
         str.append_ulonglong(part_id);
-      str.append(")");
+      str.append(')');
       append_row_to_str(str);
 
       /* Log this error, so the DBA can notice it and fix it! */
@@ -11019,8 +11019,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
           str.length(0);
           if (result == HA_ERR_FOUND_DUPP_KEY)
           {
-            str.append("Duplicate key found, "
-                       "please update or delete the record:\n");
+            str.append(STRING_WITH_LEN("Duplicate key found, "
+                                       "please update or delete the "
+                                       "record:\n"));
             result= HA_ADMIN_CORRUPT;
           }
           m_err_rec= NULL;

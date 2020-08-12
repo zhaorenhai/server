@@ -1139,7 +1139,7 @@ bool Protocol::store(I_List<i_string>* str_list)
   tmp.length(0);
   while ((s=it++))
   {
-    tmp.append(s->ptr);
+    tmp.append(s->ptr, strlen(s->ptr));
     tmp.append(',');
   }
   if ((len= tmp.length()))
