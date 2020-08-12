@@ -51,7 +51,7 @@ const LEX_CSTRING null_clex_str=  {NULL, 0};
 const LEX_CSTRING empty_clex_str= {"", 0};
 const LEX_CSTRING star_clex_str=  {"*", 1};
 const LEX_CSTRING param_clex_str= {"?", 1};
-
+const LEX_CSTRING NULL_clex_str=  {STRING_WITH_LEN("NULL")};
 
 /**
   Helper action for a case expression statement (the expr in 'CASE expr').

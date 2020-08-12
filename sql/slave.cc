@@ -314,9 +314,11 @@ build_gtid_pos_create_query(THD *thd, String *query,
                             LEX_CSTRING *engine_name)
 {
   bool err= false;
-  err|= query->append(gtid_pos_table_definition1);
+  err|= query->append(gtid_pos_table_definition1,
+                      sizeof(gtid_pos_table_definition1)-1);
   err|= append_identifier(thd, query, table_name);
-  err|= query->append(gtid_pos_table_definition2);
+  err|= query->append(gtid_pos_table_definition2,
+                      sizeof(gtid_pos_table_definition2)-1);
   err|= append_identifier(thd, query, engine_name);
   return err;
 }
@@ -2693,15 +2695,20 @@ after_set_capability:
     char quote_buf[2*sizeof(mi->master_log_name)+1];
     char str_buf[28+2*sizeof(mi->master_log_name)+10];
     String query(str_buf, sizeof(str_buf), system_charset_info);
+    size_t quote_length;
+    my_bool overflow;
     query.length(0);
 
-    query.append("SELECT binlog_gtid_pos('");
-    escape_quotes_for_mysql(&my_charset_bin, quote_buf, sizeof(quote_buf),
-                            mi->master_log_name, strlen(mi->master_log_name));
-    query.append(quote_buf);
-    query.append("',");
+    query.append(STRING_WITH_LEN("SELECT binlog_gtid_pos('"));
+    quote_length= escape_quotes_for_mysql(&my_charset_bin, quote_buf,
+                                          sizeof(quote_buf),
+                                          mi->master_log_name,
+                                          strlen(mi->master_log_name),
+                                          &overflow);
+    query.append(quote_buf, quote_length);
+    query.append(STRING_WITH_LEN("',"));
     query.append_ulonglong(mi->master_log_pos);
-    query.append(")");
+    query.append(')');
 
     if (!mysql_real_query(mysql, query.c_ptr_safe(), query.length()) &&
         (master_res= mysql_store_result(mysql)) &&

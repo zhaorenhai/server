@@ -7257,10 +7257,10 @@ public:
   ErrConvDQName(const Database_qualified_name *name)
    :m_name(name)
   { }
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
-    m_name->make_qname(err_buffer, sizeof(err_buffer));
-    return err_buffer;
+    size_t length= m_name->make_qname(err_buffer, sizeof(err_buffer));
+    return {err_buffer, length};
   }
 };
 
@@ -7303,11 +7303,12 @@ public:
 
   bool aggregate_attributes(THD *thd)
   {
+    static LEX_CSTRING union_name= { STRING_WITH_LEN("UNION") };
     for (uint i= 0; i < arg_count; i++)
       m_maybe_null|= args[i]->maybe_null();
     return
        type_handler()->Item_hybrid_func_fix_attributes(thd,
-                                                       "UNION", this, this,
+                                                       union_name, this, this,
                                                        args, arg_count);
   }
 };

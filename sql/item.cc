@@ -485,7 +485,8 @@ void Item::print_parenthesised(String *str, enum_query_type query_type,
 
 void Item::print(String *str, enum_query_type query_type)
 {
-  str->append(full_name());
+  const char *name= full_name();
+  str->append(name, strlen(name));
 }
 
 
@@ -509,7 +510,7 @@ void Item::print_value(String *str)
   String *ptr, tmp(buff,sizeof(buff),str->charset());
   ptr= val_str(&tmp);
   if (!ptr)
-    str->append("NULL");
+    str->append(NULL_clex_str);
   else
   {
     switch (cmp_type()) {
@@ -977,7 +978,7 @@ bool Item::check_cols(uint c)
 }
 
 
-bool Item::check_type_or_binary(const char *opname,
+bool Item::check_type_or_binary(const LEX_CSTRING &opname,
                                 const Type_handler *expect) const
 {
   const Type_handler *handler= type_handler();
@@ -986,111 +987,111 @@ bool Item::check_type_or_binary(const char *opname,
        collation.collation == &my_charset_bin))
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_general_purpose_string(const char *opname) const
+bool Item::check_type_general_purpose_string(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->is_general_purpose_string_type())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_traditional_scalar(const char *opname) const
+bool Item::check_type_traditional_scalar(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->is_traditional_scalar_type())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_int(const char *opname) const
+bool Item::check_type_can_return_int(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_int())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_decimal(const char *opname) const
+bool Item::check_type_can_return_decimal(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_decimal())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_real(const char *opname) const
+bool Item::check_type_can_return_real(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_real())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_date(const char *opname) const
+bool Item::check_type_can_return_date(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_date())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_time(const char *opname) const
+bool Item::check_type_can_return_time(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_time())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_str(const char *opname) const
+bool Item::check_type_can_return_str(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_str())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_can_return_text(const char *opname) const
+bool Item::check_type_can_return_text(const LEX_CSTRING &opname) const
 {
   const Type_handler *handler= type_handler();
   if (handler->can_return_text())
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Item::check_type_scalar(const char *opname) const
+bool Item::check_type_scalar(const LEX_CSTRING &opname) const
 {
   /*
     fixed==true usually means than the Item has an initialized
@@ -2485,7 +2486,8 @@ void my_coll_agg_error(Item** args, uint count, const char *fname,
 }
 
 
-bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
+bool Type_std_attributes::agg_item_collations(DTCollation &c,
+                                              const LEX_CSTRING &fname,
                                               Item **av, uint count,
                                               uint flags, int item_sep)
 {
@@ -2504,7 +2506,7 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
         unknown_cs= 1;
         continue;
       }
-      my_coll_agg_error(av, count, fname, item_sep);
+      my_coll_agg_error(av, count, fname.str, item_sep);
       return TRUE;
     }
   }
@@ -2512,14 +2514,14 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
   if (unknown_cs &&
       c.derivation != DERIVATION_EXPLICIT)
   {
-    my_coll_agg_error(av, count, fname, item_sep);
+    my_coll_agg_error(av, count, fname.str, item_sep);
     return TRUE;
   }
 
   if ((flags & MY_COLL_DISALLOW_NONE) &&
       c.derivation == DERIVATION_NONE)
   {
-    my_coll_agg_error(av, count, fname, item_sep);
+    my_coll_agg_error(av, count, fname.str, item_sep);
     return TRUE;
   }
   
@@ -2533,7 +2535,7 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c, const char *fname,
 
 
 bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
-                                                 const char *fname,
+                                                 const LEX_CSTRING &fname,
                                                  Item **args, uint nargs,
                                                  uint flags, int item_sep)
 {
@@ -2583,7 +2585,7 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
         args[0]= safe_args[0];
         args[item_sep]= safe_args[1];
       }
-      my_coll_agg_error(args, nargs, fname, item_sep);
+      my_coll_agg_error(args, nargs, fname.str, item_sep);
       res= TRUE;
       break; // we cannot return here, we need to restore "arena".
     }
@@ -2686,8 +2688,7 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
-const char *
-Item_sp::func_name(THD *thd) const
+LEX_CSTRING Item_sp::func_name_cstring(THD *thd) const
 {
   /* Calculate length to avoid reallocation of string for sure */
   size_t len= (((m_name->m_explicit_name ? m_name->m_db.length : 0) +
@@ -2707,7 +2708,7 @@ Item_sp::func_name(THD *thd) const
     qname.append('.');
   }
   append_identifier(thd, &qname, &m_name->m_name);
-  return qname.c_ptr_safe();
+  return { qname.c_ptr_safe(), qname.length() };
 }
 
 void
@@ -3784,7 +3785,8 @@ void Item_string::print(String *str, enum_query_type query_type)
   if (print_introducer)
   {
     str->append('_');
-    str->append(collation.collation->csname);
+    str->append(collation.collation->csname,
+                strlen(collation.collation->csname));
   }
 
   str->append('\'');
@@ -3806,7 +3808,7 @@ void Item_string::print(String *str, enum_query_type query_type)
         changed.
       */
       ErrConvString tmp(str_value.ptr(), str_value.length(), &my_charset_bin);
-      str->append(tmp.ptr());
+      str->append(tmp.lex_cstring());
     }
     else
     {
@@ -4743,11 +4745,11 @@ void Item_param::print(String *str, enum_query_type query_type)
   }
   else if (state == DEFAULT_VALUE)
   {
-    str->append("default");
+    str->append(STRING_WITH_LEN("default"));
   }
   else if (state == IGNORE_VALUE)
   {
-    str->append("ignore");
+    str->append(STRING_WITH_LEN("ignore"));
   }
   else
   {
@@ -6611,11 +6613,11 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
   String *result;
   CHARSET_INFO *cs= collation.collation;
   char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
-  str_value.set_quick(buff, sizeof(buff), cs);
+  str_value.set_buffer_if_not_allocated(buff, sizeof(buff), cs);
   result=val_str(&str_value);
   if (null_value)
   {
-    str_value.set_quick(0, 0, cs);
+    str_value.set_buffer_if_not_allocated(0, 0, cs);
     return set_field_to_null_with_conversions(field, no_conversions);
   }
 
@@ -6623,7 +6625,7 @@ int Item::save_str_in_field(Field *field, bool no_conversions)
 
   field->set_notnull();
   int error= field->store(result->ptr(),result->length(),cs);
-  str_value.set_quick(0, 0, cs);
+  str_value.set_buffer_if_not_allocated(0, 0, cs);
   return error;
 }
 
@@ -6940,7 +6942,7 @@ void Item_float::print(String *str, enum_query_type query_type)
 {
   if (presentation)
   {
-    str->append(presentation);
+    str->append(presentation, strlen(presentation));
     return;
   }
   char buffer[20];
@@ -6986,7 +6988,7 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 {
   uint32 len= MY_MIN(str_value.length(), sizeof(longlong));
   const char *ptr= str_value.ptr() + str_value.length() - len;
-  str->append("0x");
+  str->append("0x",2);
   str->append_hex(ptr, len);
 }
 
@@ -7009,9 +7011,9 @@ uint Item_hex_hybrid::decimal_precision() const
 
 void Item_hex_string::print(String *str, enum_query_type query_type)
 {
-  str->append("X'");
+  str->append("X'",2);
   str->append_hex(str_value.ptr(), str_value.length());
-  str->append("'");
+  str->append('\'');
 }
 
 
@@ -7061,10 +7063,10 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
 
 void Item_date_literal::print(String *str, enum_query_type query_type)
 {
-  str->append("DATE'");
+  str->append(STRING_WITH_LEN("DATE'"));
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_date_to_str(&cached_time, buf);
-  str->append(buf);
+  int length= my_date_to_str(&cached_time, buf);
+  str->append(buf, length);
   str->append('\'');
 }
 
@@ -7086,10 +7088,10 @@ bool Item_date_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzyd
 
 void Item_datetime_literal::print(String *str, enum_query_type query_type)
 {
-  str->append("TIMESTAMP'");
+  str->append(STRING_WITH_LEN("TIMESTAMP'"));
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_datetime_to_str(&cached_time, buf, decimals);
-  str->append(buf);
+  int length= my_datetime_to_str(&cached_time, buf, decimals);
+  str->append(buf, length);
   str->append('\'');
 }
 
@@ -7111,10 +7113,10 @@ bool Item_datetime_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fu
 
 void Item_time_literal::print(String *str, enum_query_type query_type)
 {
-  str->append("TIME'");
+  str->append(STRING_WITH_LEN("TIME'"));
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_time_to_str(&cached_time, buf, decimals);
-  str->append(buf);
+  int length= my_time_to_str(&cached_time, buf, decimals);
+  str->append(buf, length);
   str->append('\'');
 }
 
@@ -8547,7 +8549,7 @@ void Item_cache_wrapper::print(String *str, enum_query_type query_type)
     return;
   }
 
-  str->append("<expr_cache>");
+  str->append(STRING_WITH_LEN("<expr_cache>"));
   if (expr_cache)
   {
     init_on_demand();
