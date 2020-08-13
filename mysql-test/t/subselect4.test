@@ -2162,4 +2162,15 @@ SELECT t1.a FROM t1 WHERE t1.a IN ( SELECT A.a FROM t1 A UNION ALL SELECT B.a FR
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-23449: alias do not exist and a query do not report an error
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+
+--error ER_BAD_FIELD_ERROR
+SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
+DROP TABLE t1;
+
 --echo # end of 10.1 tests
