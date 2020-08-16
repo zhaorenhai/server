@@ -610,8 +610,26 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
       */
-      if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
-                                     key_part->length)))
+      if ((field->flags & BLOB_FLAG) && field->vcol_info)
+      {
+        TABLE *table= field->table;
+        Field_blob *f= static_cast<Field_blob *>(field);
+        Field_blob f1(*f);
+        Field_blob f2(*f);
+        uchar *rec0_save= table->record[0];
+        table->record[0]= first_rec;
+        table->update_virtual_field(&f1);
+        table->record[0]= second_rec;
+        table->update_virtual_field(&f2);
+        table->record[0]= rec0_save;
+        result= f1.cmp_prefix(f1.ptr, f2.ptr, key_part->length);
+      }
+      else
+      {
+        result= field->cmp_prefix(field->ptr + first_diff, field->ptr + sec_diff,
+                                  key_part->length);
+      }
+      if (result)
         DBUG_RETURN(result);
 next_loop:
       key_part++;

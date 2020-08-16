@@ -7750,6 +7750,9 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
                !bitmap_is_set(vcol_set, vf->field_index));
       swap_values= 1;
       break;
+    case VCOL_UPDATE_BLOBS:
+      update= vf->flags & BLOB_FLAG;
+      break;
     }
 
     if (update)
