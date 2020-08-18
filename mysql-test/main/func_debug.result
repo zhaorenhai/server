@@ -999,25 +999,25 @@ SELECT a IN (1,'1') FROM t1;
 a IN (1,'1')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,'1',NULL) FROM t1;
 a IN (1,'1',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,'1') FROM t1;
 a NOT IN (1,'1')
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a NOT IN (1,'1',NULL) FROM t1;
 a NOT IN (1,'1',NULL)
 Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (bigint)
-Note	1105	DBUG: [1] arg=2 handler=1 (double)
+Note	1105	DBUG: [1] arg=2 handler=1 (decimal)
 Note	1105	DBUG: types_compatible=no bisect=no
 SELECT a IN (1,TIME'10:20:30') FROM t1;
 a IN (1,TIME'10:20:30')

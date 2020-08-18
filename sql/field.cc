@@ -7265,8 +7265,7 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
   ASSERT_COLUMN_MARKED_FOR_READ;
   THD *thd= get_thd();
   Converter_str2my_decimal_with_warn(thd,
-                                     Warn_filter_string(thd, this),
-                                     E_DEC_FATAL_ERROR,
+                                     Warn_filter_string(thd, this), 0,
                                      Field_string::charset(),
                                      (const char *) ptr,
                                      field_length, decimal_value);
@@ -7677,8 +7676,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   THD *thd= get_thd();
-  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd), 0,
                                      Field_varstring::charset(),
                                      (const char *) get_data(),
                                      get_length(), decimal_value);
@@ -8509,8 +8507,7 @@ my_decimal *Field_blob::val_decimal(my_decimal *decimal_value)
     length= get_length(ptr);
 
   THD *thd= get_thd();
-  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd),
-                                     E_DEC_FATAL_ERROR,
+  Converter_str2my_decimal_with_warn(thd, Warn_filter(thd), 0,
                                      Field_blob::charset(),
                                      blob, length, decimal_value);
   return decimal_value;

@@ -311,7 +311,7 @@ protected:
                                              const char *end)
   {
     Converter_str2my_decimal_with_warn(NULL, Warn_filter_all(),
-                                       E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
+                                       0,
                                        cs, cptr, end - cptr, decimal_value);
     return decimal_value;
   }
