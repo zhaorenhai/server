@@ -1170,6 +1170,11 @@ public:
             ((flags & (item_flags_t) ~ITEM_FLAG_MAYBE_NULL) |
              ((maybe_null_arg << ITEM_FLAG_MAYBE_NULL_SHIFT))));
   }
+  /* This is used when calling Type_all_attributes::set_type_maybe_null() */
+  void set_type_maybe_null(bool maybe_null_arg) override
+  {
+    set_maybe_null(maybe_null_arg);
+  }
   void set_typelib(const TYPELIB *typelib)
   {
     // Non-field Items (e.g. hybrid functions) never have ENUM/SET types yet.
