@@ -699,6 +699,8 @@ public:
   void set_thd(THD *thd_arg) { thd= thd_arg; }
   inline bool is_union (); 
   bool union_needs_tmp_table();
+  bool is_order_by_clause_redundant();
+  bool is_union_op_inside_in_predicate();
 
   void set_unique_exclude();
 

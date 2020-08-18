@@ -590,6 +590,13 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
     DBUG_PRINT("info", ("DISTINCT removed"));
   }
 
+  if (subq_select_lex->master_unit()->is_union_op_inside_in_predicate() &&
+      subq_select_lex->master_unit()->fake_select_lex == subq_select_lex &&
+      subq_select_lex->order_list.elements)
+  {
+    subq_select_lex->join->order= NULL;
+  }
+
   /*
     Remove GROUP BY if there are no aggregate functions and no HAVING
     clause

@@ -331,6 +331,35 @@ st_select_lex_unit::init_prepare_fake_select_lex(THD *thd_arg,
     (*order->item)->walk(&Item::set_fake_select_as_master_processor, 0,
                          (uchar*) fake_select_lex);
   }
+
+  /*
+    If we are reading UNION output and the UNION is in the
+    IN/ANY/ALL subquery, then ORDER BY is redundant and hence should
+    be removed.
+    Example:
+     select ... col IN (select col2 FROM t1 union select col3 from t2 ORDER BY 1)
+
+    (as for ORDER BY ... LIMIT, it currently not supported inside
+     IN/ALL/ANY subqueries)
+     ORDER BY LIMIT is allowed in EXISTS subqueries, so we don't remove
+     the ORDER BY clause from EXISTS subqueries
+    (For non-UNION this removal of ORDER BY clause is done in
+     check_and_do_in_subquery_rewrites())
+     @see remove_redundant_subquery_clauses
+  */
+  if (is_union_op_inside_in_predicate())
+  {
+    for (ORDER *ord= global_parameters()->order_list.first; ord; ord= ord->next)
+    {
+      /*
+        The subqueries inside the ORDER BY clause are marked as eliminated.
+        This is done to avoid adding the subqueries as children of the
+        fake_select_lex in the EXPLAIN structures.
+      */
+      (*ord->item)->walk(&Item::mark_as_eliminated_processor, FALSE, NULL);
+    }
+  }
+
 }
 
 
@@ -387,25 +416,6 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   thd_arg->lex->current_select= sl= first_sl;
   found_rows_for_union= first_sl->options & OPTION_FOUND_ROWS;
   is_union_select= is_union() || fake_select_lex;
-
-  /*
-    If we are reading UNION output and the UNION is in the
-    IN/ANY/ALL/EXISTS subquery, then ORDER BY is redundant and hence should
-    be removed.
-    Example:
-     select ... col IN (select col2 FROM t1 union select col3 from t2 ORDER BY 1)
-
-    (as for ORDER BY ... LIMIT, it currently not supported inside
-     IN/ALL/ANY subqueries)
-    (For non-UNION this removal of ORDER BY clause is done in
-     check_and_do_in_subquery_rewrites())
-  */
-  if (is_union() && item &&
-      (item->is_in_predicate() || item->is_exists_predicate()))
-  {
-    global_parameters()->order_list.first= NULL;
-    global_parameters()->order_list.elements= 0;
-  }
 
   /* Global option */
 

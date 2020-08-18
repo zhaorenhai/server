@@ -3170,7 +3170,41 @@ bool st_select_lex_unit::union_needs_tmp_table()
     global_parameters()->order_list.elements != 0 ||
     thd->lex->sql_command == SQLCOM_INSERT_SELECT ||
     thd->lex->sql_command == SQLCOM_REPLACE_SELECT;
-}  
+}
+
+
+/*
+  @brief
+    Check if the ORDER BY clause is redundant or empty
+
+  @retval
+    TRUE           order by is redundant or empty
+    FALSE          OTHERWISE
+*/
+
+bool st_select_lex_unit::is_order_by_clause_redundant()
+{
+  if (global_parameters()->order_list.elements == 0)
+    return true;
+  if (is_union_op_inside_in_predicate())
+    return true;
+  return false;
+}
+
+
+/*
+  @brief
+  Check if UNION is in side an IN/ALL/ANY subquery
+
+  @retval
+    TRUE     UNION inside in an IN/ALL/ANY subquery
+    FALSE    Otherwise
+*/
+bool st_select_lex_unit::is_union_op_inside_in_predicate()
+{
+  return is_union() && item && item->is_in_predicate();
+}
+
 
 /**
   @brief Set the initial purpose of this TABLE_LIST object in the list of used
@@ -4678,7 +4712,7 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     eu->add_select(sl->select_number);
 
   eu->fake_select_type= "UNION RESULT";
-  eu->using_filesort= MY_TEST(global_parameters()->order_list.first);
+  eu->using_filesort= MY_TEST(!is_order_by_clause_redundant());
   eu->using_tmp= union_needs_tmp_table();
 
   // Save the UNION node
