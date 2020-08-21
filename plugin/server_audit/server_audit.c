@@ -1,5 +1,4 @@
-/* Copyright (C) 2013, 2015, Alexey Botchkov and SkySQL Ab
-   Copyright (c) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, Alexey Botchkov and MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,22 +14,19 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.8"
+#define PLUGIN_VERSION 0x200
+#define PLUGIN_STR_VERSION "2.0.2"
 
 #define _my_thread_var loc_thread_var
 
 #include <my_config.h>
 #include <assert.h>
 
+
 #ifndef _WIN32
 #define DO_SYSLOG
 #include <syslog.h>
-static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
-                                   " or 'null' as no output.";
 #else
-static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
-                                   " or 'null' as no output.";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -89,13 +85,28 @@ static void closelog() {}
 #include <my_global.h>
 #include <my_base.h>
 #include <typelib.h>
+#include <mysql_com.h>  /* for enum enum_server_command */
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
 #include <string.h>
-#include "../../mysys/mysys_priv.h"
 #ifndef RTLD_DEFAULT
 #define RTLD_DEFAULT NULL
 #endif
+
+LEX_STRING * thd_query_string (MYSQL_THD thd);
+unsigned long long thd_query_id(const MYSQL_THD thd);
+size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+const char *thd_user_name(MYSQL_THD thd);
+const char *thd_client_host(MYSQL_THD thd);
+const char *thd_client_ip(MYSQL_THD thd);
+LEX_CSTRING *thd_current_db(MYSQL_THD thd);
+int thd_current_status(MYSQL_THD thd);
+enum enum_server_command thd_current_command(MYSQL_THD thd);
+
+int maria_compare_hostname(const char *wild_host, long wild_ip, long ip_mask,
+                         const char *host, const char *ip);
+void maria_update_hostname(const char **wild_host, long *wild_ip, long *ip_mask,
+                         const char *host);
 
 #ifndef MARIADB_ONLY
 #undef MYSQL_SERVICE_LOGGER_INCLUDED
@@ -141,6 +152,58 @@ static int loc_file_errno;
 #define logger_rotate loc_logger_rotate
 #define logger_init_mutexts loc_logger_init_mutexts
 
+
+enum filter_cond_func
+{
+  COND_ERROR= 0,
+  COND_TRUE,
+  COND_FALSE,
+  COND_OR,
+  COND_AND,
+  COND_OR_NOT,
+  COND_AND_NOT,
+  COND_EVENT,
+  COND_EVENT_QUERY,
+  COND_EVENT_TABLE,
+  COND_EVENT_CONNECT,
+  COND_LOGGING
+};
+
+
+struct filter_cond
+{
+  enum filter_cond_func func;
+
+  struct filter_cond *arg_list;
+  unsigned long mask;
+  unsigned long query_mask;
+  struct filter_cond *next;
+};
+
+
+struct filter_def
+{
+  char name[80];
+  struct filter_cond *rule;
+  struct filter_def *next;
+};
+
+
+//static int filter_version= 1;
+static struct filter_def *filter_list= 0;
+static struct filter_def *default_filter= 0;
+
+
+struct user_def
+{
+  char *name;
+  char *host;
+  struct filter_def *filter;
+  struct user_def *next;
+};
+
+
+static struct user_def *user_list= 0;
 
 static size_t loc_write(File Filedes, const uchar *Buffer, size_t Count)
 {
@@ -285,21 +348,18 @@ static int use_event_data_for_disconnect= 0;
 static int started_mariadb= 0;
 static int maria_55_started= 0;
 static int maria_above_5= 0;
-static char *incl_users, *excl_users,
-            *file_path, *syslog_info;
+static char *file_path, *syslog_info;
 static char path_buffer[FN_REFLEN];
 static unsigned int mode, mode_readonly= 0;
 static ulong output_type;
 static ulong syslog_facility, syslog_priority;
 
-static ulonglong events; /* mask for events to log */
 static unsigned long long file_rotate_size;
 static unsigned int rotations;
 static my_bool rotate= TRUE;
+static my_bool reload_filters= TRUE;
 static char logging;
 static volatile int internal_stop_logging= 0;
-static char incl_user_buffer[1024];
-static char excl_user_buffer[1024];
 static char *big_buffer= NULL;
 static size_t big_buffer_alloced= 0;
 static unsigned int query_log_limit= 0;
@@ -312,40 +372,46 @@ static char syslog_ident_buffer[128]= "mysql-server_auditing";
 struct connection_info
 {
   int header;
-  unsigned long thread_id;
-  unsigned long long query_id;
-  char db[256];
-  int db_length;
-  char user[64];
-  int user_length;
-  char host[64];
-  int host_length;
-  char ip[64];
-  int ip_length;
+  MYSQL_THD thd;
+  const char *user;
+  unsigned int user_len;
+  const char *host;
+  unsigned int host_len;
+  const char *ip;
+  unsigned int ip_len;
+  MYSQL_CONST_LEX_STRING db, table;
+  MYSQL_CONST_LEX_STRING new_db, new_table;
   const char *query;
-  int query_length;
-  char query_buffer[1024];
+  unsigned int query_len;
   time_t query_time;
-  int log_always;
+  unsigned long event_type;
+  int event_subclass;
+  int read_only;
+  unsigned long long query_id;
+  unsigned long thread_id;
+  int error_code;
+  //struct filter_def *filter;
+  //int filter_version;
 };
+
+static void setc(const char *v, const char **sv, unsigned int *v_len)
+{
+  *sv= v ? v : "";
+  *v_len= (unsigned int) strlen(*sv);
+}
+
 
 #define DEFAULT_FILENAME_LEN 16
 static char default_file_name[DEFAULT_FILENAME_LEN+1]= "server_audit.log";
 
+static void update_query_log_limit(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                   void *var_ptr, const void *save);
 static void update_file_path(MYSQL_THD thd, struct st_mysql_sys_var *var,
                              void *var_ptr, const void *save);
 static void update_file_rotate_size(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                     void *var_ptr, const void *save);
 static void update_file_rotations(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save);
-static void update_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
-                              void *var_ptr, const void *save);
-static int check_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
-                            struct st_mysql_value *value);
-static int check_excl_users(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
-                            struct st_mysql_value *value);
-static void update_excl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
-                              void *var_ptr, const void *save);
 static void update_output_type(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                void *var_ptr, const void *save);
 static void update_syslog_facility(MYSQL_THD thd, struct st_mysql_sys_var *var,
@@ -360,36 +426,11 @@ static void update_syslog_ident(MYSQL_THD thd, struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save);
 static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
+static void do_reload_filters(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                              void *var_ptr, const void *save);
 
-static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to monitor.",
-       check_incl_users, update_incl_users, NULL);
-static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to exclude from auditing.",
-       check_excl_users, update_excl_users, NULL);
 /* bits in the event filter. */
-#define EVENT_CONNECT 1
-#define EVENT_QUERY_ALL 2
-#define EVENT_QUERY 122
-#define EVENT_TABLE 4
-#define EVENT_QUERY_DDL 8
-#define EVENT_QUERY_DML 16
-#define EVENT_QUERY_DCL 32
-#define EVENT_QUERY_DML_NO_SELECT 64
 
-static const char *event_names[]=
-{
-  "CONNECT", "QUERY", "TABLE", "QUERY_DDL", "QUERY_DML", "QUERY_DCL",
-  "QUERY_DML_NO_SELECT", NULL
-};
-static TYPELIB events_typelib=
-{
-  array_elements(event_names) - 1, "", event_names, NULL
-};
-static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
-       "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
-           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
-       NULL, NULL, 0, &events_typelib);
 #ifdef DO_SYSLOG
 #define OUTPUT_SYSLOG 0
 #define OUTPUT_FILE 1
@@ -410,8 +451,8 @@ static TYPELIB output_typelib=
     output_type_names, NULL
 };
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
-       out_type_desc,
-       0, update_output_type, OUTPUT_FILE,
+       "Desired output type. Possible values - 'syslog', 'file'"
+       " or 'null' as no output.", 0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
        "Path to the log file.", NULL, update_file_path, default_file_name);
@@ -424,6 +465,8 @@ static MYSQL_SYSVAR_UINT(file_rotations, rotations,
        NULL, update_file_rotations, 9, 0, 999, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
        "Force log rotation now.", NULL, rotate_log, FALSE);
+static MYSQL_SYSVAR_BOOL(reload_filters, reload_filters, PLUGIN_VAR_OPCMDARG,
+       "Reload filter definitions from tables.", NULL, do_reload_filters, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
        PLUGIN_VAR_OPCMDARG, "Turn on/off the logging.", NULL,
        update_logging, 0);
@@ -437,7 +480,7 @@ static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        "The <info> string to be added to the SYSLOG record.", NULL, NULL, "");
 static MYSQL_SYSVAR_UINT(query_log_limit, query_log_limit,
        PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record.",
-       NULL, NULL, 1024, 0, 0x7FFFFFFF, 1);
+       NULL, update_query_log_limit, 1024, 0, 0x7FFFFFFF, 1);
 
 char locinfo_ini_value[sizeof(struct connection_info)+4];
 
@@ -513,14 +556,12 @@ static MYSQL_SYSVAR_ENUM(syslog_priority, syslog_priority, PLUGIN_VAR_RQCMDARG,
 
 
 static struct st_mysql_sys_var* vars[] = {
-    MYSQL_SYSVAR(incl_users),
-    MYSQL_SYSVAR(excl_users),
-    MYSQL_SYSVAR(events),
     MYSQL_SYSVAR(output_type),
     MYSQL_SYSVAR(file_path),
     MYSQL_SYSVAR(file_rotate_size),
     MYSQL_SYSVAR(file_rotations),
     MYSQL_SYSVAR(file_rotate_now),
+    MYSQL_SYSVAR(reload_filters),
     MYSQL_SYSVAR(logging),
     MYSQL_SYSVAR(mode),
     MYSQL_SYSVAR(syslog_info),
@@ -539,7 +580,12 @@ static long log_write_failures= 0;
 static char current_log_buf[FN_REFLEN]= "";
 static char last_error_buf[512]= "";
 
-extern void *mysql_v4_descriptor;
+static char err_msg[512]= "";
+static size_t err_len= 0;
+
+static int show_filter(MYSQL_THD thd, struct st_mysql_show_var *var,
+                       char *buff, struct system_status_var *sv,
+                       enum enum_var_type scope);
 
 static struct st_mysql_show_var audit_status[]=
 {
@@ -547,35 +593,38 @@ static struct st_mysql_show_var audit_status[]=
   {"server_audit_current_log", current_log_buf, SHOW_CHAR},
   {"server_audit_writes_failed", (char *)&log_write_failures, SHOW_LONG},
   {"server_audit_last_error", last_error_buf, SHOW_CHAR},
+  {"server_audit_session_filter", (char*) &show_filter, SHOW_SIMPLE_FUNC},
   {0,0,0}
 };
 
+
 #if defined(HAVE_PSI_INTERFACE) && !defined(FLOGGER_NO_PSI)
 /* These belong to the service initialization */
-static PSI_mutex_key key_LOCK_operations;
 static PSI_mutex_key key_LOCK_atomic;
 static PSI_mutex_key key_LOCK_bigbuffer;
+#endif
+
+#ifdef HAVE_PSI_INTERFACE
+static PSI_mutex_key key_LOCK_operations;
 static PSI_mutex_info mutex_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
-    PSI_FLAG_GLOBAL},
+    PSI_FLAG_GLOBAL}
+#ifndef FLOGGER_NO_PSI
+  ,
   { &key_LOCK_atomic, "SERVER_AUDIT_plugin::lock_atomic",
     PSI_FLAG_GLOBAL},
   { &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
     PSI_FLAG_GLOBAL}
+#endif /*FLOGGER_NO_PSI*/
 };
-#endif
-static mysql_mutex_t lock_operations;
+#endif /*HAVE_PSI_INTERFACE*/
+
+static mysql_prlock_t lock_operations;
 static mysql_mutex_t lock_atomic;
 static mysql_mutex_t lock_bigbuffer;
 
-/* The Percona server and partly MySQL don't support         */
-/* launching client errors in the 'update_variable' methods. */
-/* So the client errors just disabled for them.              */
-/* The possible solution is to implement the 'check_variable'*/
-/* methods there properly, but at the moment i'm not sure it */
-/* worths doing.                                             */
-#define CLIENT_ERROR if (!started_mysql) my_printf_error
+#define CLIENT_ERROR my_printf_error
 
 #define ADD_ATOMIC(x, a)              \
   do {                                \
@@ -583,226 +632,6 @@ static mysql_mutex_t lock_bigbuffer;
   x+= a;                              \
   flogger_mutex_unlock(&lock_atomic); \
   } while (0)
-
-
-static uchar *getkey_user(const char *entry, size_t *length,
-                          my_bool nu __attribute__((unused)) )
-{
-  const char *e= entry;
-  while (*e && *e != ' ' && *e != ',')
-    ++e;
-  *length= e - entry;
-  return (uchar *) entry;
-}
-
-
-static void blank_user(char *user)
-{
-  for (; *user && *user != ','; user++)
-    *user= ' ';
-}
-
-
-static void remove_user(char *user)
-{
-  char *start_user= user;
-  while (*user != ',')
-  {
-    if (*user == 0)
-    {
-      *start_user= 0;
-      return;
-    }
-    user++;
-  }
-  user++;
-  while (*user == ' ')
-    user++;
-
-  do {
-    *(start_user++)= *user;
-  } while (*(user++));
-}
-
-
-static void remove_blanks(char *user)
-{
-  char *user_orig= user;
-  char *user_to= user;
-  char *start_tok;
-  int blank_name;
-
-  while (*user != 0)
-  {
-    start_tok= user;
-    blank_name= 1;
-    while (*user !=0 && *user != ',')
-    {
-      if (*user != ' ')
-        blank_name= 0;
-      user++;
-    }
-    if (!blank_name)
-    {
-      while (start_tok <= user)
-        *(user_to++)= *(start_tok++);
-    }
-    if (*user == ',')
-      user++;
-  }
-  if (user_to > user_orig && user_to[-1] == ',')
-    user_to--;
-  *user_to= 0;
-}
-
-
-struct user_name
-{
-  size_t name_len;
-  char *name;
-};
-
-
-struct user_coll
-{
-  int n_users;
-  struct user_name *users;
-  int n_alloced;
-};
-
-
-static void coll_init(struct user_coll *c)
-{
-  c->n_users= 0;
-  c->users= 0;
-  c->n_alloced= 0;
-}
-
-
-static void coll_free(struct user_coll *c)
-{
-  if (c->users)
-  {
-    free(c->users);
-    coll_init(c);
-  }
-}
-
-
-static int cmp_users(const void *ia, const void *ib)
-{
-  const struct user_name *a= (const struct user_name *) ia;
-  const struct user_name *b= (const struct user_name *) ib;
-  int dl= (int)(a->name_len - b->name_len);
-  if (dl != 0)
-    return dl;
-
-  return strncmp(a->name, b->name, a->name_len);
-}
-
-
-static char *coll_search(struct user_coll *c, const char *n, size_t len)
-{
-  struct user_name un;
-  struct user_name *found;
-  un.name_len= len;
-  un.name= (char *) n;
-  found= (struct user_name*)  bsearch(&un, c->users, c->n_users,
-                                      sizeof(c->users[0]), cmp_users);
-  return found ? found->name : 0;
-}
-
-
-static int coll_insert(struct user_coll *c, char *n, size_t len)
-{
-  if (c->n_users >= c->n_alloced)
-  {
-    c->n_alloced+= 128;
-    if (c->users == NULL)
-      c->users= malloc(c->n_alloced * sizeof(c->users[0]));
-    else
-      c->users= realloc(c->users, c->n_alloced * sizeof(c->users[0]));
-
-    if (c->users == NULL)
-      return 1;
-  }
-  c->users[c->n_users].name= n;
-  c->users[c->n_users].name_len= len;
-  c->n_users++;
-  return 0;
-}
-
-
-static void coll_sort(struct user_coll *c)
-{
-  qsort(c->users, c->n_users, sizeof(c->users[0]), cmp_users);
-}
-
-
-static int user_coll_fill(struct user_coll *c, char *users,
-                          struct user_coll *cmp_c, int take_over_cmp)
-{
-  char *orig_users= users;
-  char *cmp_user= 0;
-  size_t cmp_length;
-  int refill_cmp_coll= 0;
-
-  c->n_users= 0;
-
-  while (*users)
-  {
-    while (*users == ' ')
-      users++;
-    if (!*users)
-      return 0;
-
-    (void) getkey_user(users, &cmp_length, FALSE);
-    if (cmp_c)
-    {
-      cmp_user= coll_search(cmp_c, users, cmp_length);
-
-      if (cmp_user && take_over_cmp)
-      {
-        ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*b' was removed from the"
-            " server_audit_excl_users.",
-            MYF(ME_WARNING), (int) cmp_length, users);
-        ADD_ATOMIC(internal_stop_logging, -1);
-        blank_user(cmp_user);
-        refill_cmp_coll= 1;
-      }
-      else if (cmp_user)
-      {
-        ADD_ATOMIC(internal_stop_logging, 1);
-        CLIENT_ERROR(1, "User '%.*b' is in the server_audit_incl_users, "
-            "so wasn't added.", MYF(ME_WARNING), (int) cmp_length, users);
-        ADD_ATOMIC(internal_stop_logging, -1);
-        remove_user(users);
-        continue;
-      }
-    }
-    if (coll_insert(c, users, cmp_length))
-      return 1;
-    while (*users && *users != ',')
-      users++;
-    if (!*users)
-      break;
-    users++;
-  }
-
-  if (refill_cmp_coll)
-  {
-    remove_blanks(excl_users);
-    return user_coll_fill(cmp_c, excl_users, 0, 0);
-  }
-
-  if (users > orig_users && users[-1] == ',')
-    users[-1]= 0;
-
-  coll_sort(c);
-
-  return 0;
-}
 
 
 enum sa_keywords
@@ -926,7 +755,7 @@ struct sa_keyword passwd_keywords[]=
   {0, NULL, 0, SQLCOM_NOTHING}
 };
 
-#define MAX_KEYWORD 9
+#define MAX_KEYWORD 20
 
 
 static void error_header()
@@ -937,16 +766,36 @@ static void error_header()
   (void) time(&curtime);
   (void) localtime_r(&curtime, &tm_time);
 
-  (void) fprintf(stderr,"%02d%02d%02d %2d:%02d:%02d server_audit: ",
-    tm_time.tm_year % 100, tm_time.tm_mon + 1,
+  (void) fprintf(stderr,"%d-%02d-%02d %2d:%02d:%02d server_audit: ",
+    tm_time.tm_year + 1900, tm_time.tm_mon + 1,
     tm_time.tm_mday, tm_time.tm_hour, tm_time.tm_min, tm_time.tm_sec);
 }
 
 
-static LOGGER_HANDLE *logfile;
-static struct user_coll incl_user_coll, excl_user_coll;
-static unsigned long long query_counter= 1;
+static void explain_error(const char *fmt, ...)
+{
+  size_t len;
+  va_list args;
 
+  if (err_len > 0 && err_len < sizeof(err_msg))
+  {
+    err_msg[err_len++]= ' ';
+  }
+  va_start(args, fmt);
+  len= my_vsnprintf(err_msg + err_len, sizeof(err_msg) - err_len,
+                    fmt, args);
+  va_end(args);
+  
+  error_header();
+  va_start(args, fmt);
+  vfprintf(stderr, fmt, args);
+  va_end(args);
+  fprintf(stderr, "\n");
+  err_len+= len;
+}
+
+
+static LOGGER_HANDLE *logfile;
 
 static struct connection_info *get_loc_info(MYSQL_THD thd)
 {
@@ -954,89 +803,449 @@ static struct connection_info *get_loc_info(MYSQL_THD thd)
 }
 
 
+/*
+  Not userd at the moment, but can be needed later.
+
 static int ci_needs_setup(const struct connection_info *ci)
 {
   return ci->header != 0;
 }
+*/
 
 
-static void get_str_n(char *dest, int *dest_len, size_t dest_size,
-                      const char *src, size_t src_len)
+extern int execute_sql_command(const char *command,
+                               char *hosts, char *names, char *filters);
+
+
+static void free_filters_ex(struct filter_def **filter_list,
+                            struct filter_def **default_filter,
+                            struct user_def **user_list)
 {
-  if (src_len >= dest_size)
-    src_len= dest_size - 1;
+  while (*user_list)
+  {
+    struct user_def *tmp= *user_list;
+    *user_list= tmp->next;
+    free(tmp);
+  }
 
-  memcpy(dest, src, src_len);
-  dest[src_len]= 0;
-  *dest_len= (int)src_len;
+  while (*filter_list)
+  {
+    struct filter_def *tmp= *filter_list;
+    *filter_list= tmp->next;
+    free(tmp);
+  }
+  *default_filter= 0;
 }
 
 
-static int get_user_host(const char *uh_line, unsigned int uh_len,
-                         char *buffer, size_t buf_len,
-                         size_t *user_len, size_t *host_len, size_t *ip_len)
+static void free_filters()
 {
-  const char *buf_end= buffer + buf_len - 1;
-  const char *buf_start;
-  const char *uh_end= uh_line + uh_len;
+  free_filters_ex(&filter_list, &default_filter, &user_list);
+}
 
-  while (uh_line < uh_end && *uh_line != '[')
-    ++uh_line;
 
-  if (uh_line == uh_end)
-    return 1;
-  ++uh_line;
+struct cond_func_dsc
+{
+  enum filter_cond_func func;
+  const char *name;
+  size_t name_len;
+};
 
-  buf_start= buffer;
-  while (uh_line < uh_end && *uh_line != ']')
+static struct cond_func_dsc cond_collection[]=
+{
+  {COND_OR, "or", 2},
+  {COND_AND, "and", 3},
+  {COND_OR_NOT, "not-or", 6},
+  {COND_AND_NOT, "not-and", 7},
+  {COND_EVENT, "events", 6},
+  {COND_EVENT_QUERY, "query_event", 11},
+  {COND_EVENT_TABLE, "table_event", 11},
+  {COND_EVENT_CONNECT, "connect_event", 13},
+  {COND_LOGGING, "logging", 7},
+  {COND_ERROR, NULL, 0}
+};
+
+
+static enum filter_cond_func find_cond_func(const char *cond_name,
+                                            size_t name_len)
+{
+  int nf;
+  for (nf= 0; cond_collection[nf].name; nf++)
   {
-    if (buffer == buf_end)
-      return 1;
-    *(buffer++)= *(uh_line++);
+    if (name_len == cond_collection[nf].name_len &&
+        strncasecmp(cond_collection[nf].name, cond_name, name_len) == 0)
+      return cond_collection[nf].func;
   }
-  if (uh_line == uh_end)
-    return 1;
-  *user_len= buffer - buf_start;
-  *(buffer++)= 0;
+  return COND_ERROR;
+}
 
-  while (uh_line < uh_end && *uh_line != '@')
-    ++uh_line;
-  if (uh_line == uh_end || *(++uh_line) == 0)
-    return 1;
-  ++uh_line;
 
-  buf_start= buffer;
-  while (uh_line < uh_end && *uh_line != ' ' && *uh_line != '[')
+struct option_value
+{
+  const char *name;
+  size_t name_len;
+  int value;
+};
+
+
+#define EVENT_OPT_ALL 0xFF
+#define EVENT_CONNECT 1
+#define EVENT_QUERY 2
+#define EVENT_TABLE 4
+#define EVENT_OPT_QUERY_DDL 8
+#define EVENT_OPT_QUERY_DML 16
+#define EVENT_OPT_QUERY_DCL 32
+#define EVENT_OPT_QUERY_DML_WRITE 64
+#define EVENT_OPT_QUERY_DML_READ 128
+#define EVENT_QUERY_DO_PARSE (8 | 16 | 32 | 64 | 128)
+
+static struct option_value event_options[]=
+{
+  {"ALL", 3, EVENT_OPT_ALL},
+  {"CONNECT", 7, EVENT_CONNECT},
+  {"QUERY", 5, EVENT_QUERY},
+  {"TABLE", 5, EVENT_TABLE},
+  {"QUERY_DDL", 9, EVENT_OPT_QUERY_DDL},
+  {"QUERY_DML", 9, EVENT_OPT_QUERY_DML},
+  {"QUERY_DCL", 9, EVENT_OPT_QUERY_DCL},
+  {"QUERY_DML_NO_SELECT", 19, EVENT_OPT_QUERY_DML_WRITE},
+  {"DML_READ", 8, EVENT_OPT_QUERY_DML_READ},
+  {"DML_WRITE", 9, EVENT_OPT_QUERY_DML_WRITE},
+  {0,0,0}
+};
+
+
+
+#define TABLE_OPT_ALL 0xFF
+#define TABLE_OPT_READ 1
+#define TABLE_OPT_WRITE 2
+#define TABLE_OPT_CREATE 4
+#define TABLE_OPT_DROP 8
+#define TABLE_OPT_ALTER 16
+#define TABLE_OPT_RENAME 32
+
+static struct option_value table_event_options[]=
+{
+  {"ALL", 3, TABLE_OPT_ALL},
+  {"READ", 4, TABLE_OPT_READ},
+  {"WRITE", 5, TABLE_OPT_WRITE},
+  {"CREATE", 6, TABLE_OPT_CREATE},
+  {"DROP", 4, TABLE_OPT_DROP},
+  {"ALTER", 5, TABLE_OPT_ALTER},
+  {"RENAME", 5, TABLE_OPT_RENAME},
+  {0,0,0}
+};
+
+
+#define QUERY_OPT_ALL 0xFF
+#define QUERY_OPT_DDL 1
+#define QUERY_OPT_DML 2
+#define QUERY_OPT_DCL 4
+#define QUERY_OPT_DML_WRITE 8
+#define QUERY_OPT_DML_READ 16
+
+static struct option_value query_event_options[]=
+{
+  {"ALL", 3, QUERY_OPT_ALL},
+  {"DDL", 3, QUERY_OPT_DDL},
+  {"DML", 3, QUERY_OPT_DML},
+  {"DCL", 3, QUERY_OPT_DCL},
+  {"DML_NO_SELECT", 14, QUERY_OPT_DML_WRITE},
+  {"DML_WRITE", 9, QUERY_OPT_DML_WRITE},
+  {"DML_READ", 8, QUERY_OPT_DML_READ},
+  {0,0,0}
+};
+
+
+#define CONNECT_OPT_ALL 0xFF
+#define CONNECT_OPT_CONNECT 1
+#define CONNECT_OPT_FAILED_CONNECT 2
+#define CONNECT_OPT_DISCONNECT 4
+#define CONNECT_OPT_CHANGE_USER 8
+
+static struct option_value connect_event_options[]=
+{
+  {"ALL", 3, CONNECT_OPT_ALL},
+  {"CONNECT", 7, CONNECT_OPT_CONNECT},
+  {"FAILED_CONNECT", 14, CONNECT_OPT_FAILED_CONNECT},
+  {"DISCONNECT", 10, CONNECT_OPT_DISCONNECT},
+  {"CHANGE_USER", 11, CONNECT_OPT_CHANGE_USER},
+  {0,0,0}
+};
+
+
+static struct option_value logging_options[]=
+{
+  {"ON", 2, 1},
+  {"OFF", 3, 0},
+  {0,0,0}
+};
+
+
+static int parse_events(struct option_value *options, enum json_types s_type,
+                        const char *s, const char *s_end, unsigned long *mask);
+
+static struct filter_cond *make_cond(enum filter_cond_func cfunc,
+                                     enum json_types def_type,
+                                     const char *def, const char *def_end)
+{
+  unsigned int nkey;
+  enum json_types vt;
+  const char *v, *keyname, *keyname_end;
+  int v_len;
+  struct filter_cond *f= (struct filter_cond *) malloc(sizeof(struct filter_cond));
+  struct filter_cond **arg_hook;
+
+
+  f->func= cfunc;
+  switch (cfunc)
   {
-    if (buffer == buf_end)
-      break;
-    *(buffer++)= *(uh_line++);
-  }
-  *host_len= buffer - buf_start;
-  *(buffer++)= 0;
+  case COND_TRUE:
+  case COND_FALSE:
+    break;
 
-  while (uh_line < uh_end && *uh_line != '[')
-    ++uh_line;
+  case COND_OR:
+  case COND_AND:
+  case COND_OR_NOT:
+  case COND_AND_NOT:
+    if (def_type == JSV_TRUE)
+    {
+      f->func= COND_TRUE;
+      goto ok;
+    }
+    if (def_type == JSV_FALSE)
+    {
+      f->func= COND_FALSE;
+      goto ok;
+    }
+    if (def_type != JSV_OBJECT)
+    {
+      explain_error("Syntax error in filter definition.");
+      goto error;
+    }
 
-  buf_start= buffer;
-  if (*uh_line == '[')
-  {
-    ++uh_line;
-    while (uh_line < uh_end && *uh_line != ']')
-      *(buffer++)= *(uh_line++);
-  }
-  *ip_len= buffer - buf_start;
+    vt= json_get_object_nkey(def, def_end, 0,
+                             &keyname, &keyname_end, &v, &v_len);
+
+    if (vt == JSV_BAD_JSON)
+      goto error;
+
+    if (vt == JSV_NOTHING)
+    {
+      /* empty json object - means TRUE */
+      f->func= COND_TRUE;
+      goto ok;
+    }
+
+    nkey= 1;
+    arg_hook= &f->arg_list;
+    do
+    {
+      struct filter_cond *cf;
+      cfunc= find_cond_func(keyname, keyname_end - keyname);
+      if (cfunc == COND_ERROR)
+      {
+        explain_error("Unknown filter function %.*s.",
+                      (int) (keyname_end - keyname), keyname);
+        goto error;
+      }
+      cf= make_cond(cfunc, vt, v, v + v_len);
+      if (!cf)
+      {
+        *arg_hook= 0;
+        goto error;
+      }
+      *arg_hook= cf;
+      arg_hook= &cf->next;
+
+    } while ((vt= json_get_object_nkey(def, def_end, nkey++,
+                    &keyname, &keyname_end, &v, &v_len)) != JSV_NOTHING);
+
+    *arg_hook= 0;
+    break;
+
+  case COND_EVENT:
+    if (parse_events(event_options, def_type, def, def_end, &f->mask))
+      goto error;
+    if (f->mask & EVENT_QUERY)
+    {
+      f->query_mask= 0;
+      f->mask&= ~EVENT_QUERY_DO_PARSE;
+    }
+    else
+      f->query_mask= f->mask & EVENT_QUERY_DO_PARSE;
+
+    break;
+
+  case COND_EVENT_TABLE:
+    if (parse_events(table_event_options, def_type, def, def_end, &f->mask))
+      goto error;
+    break;
+
+  case COND_EVENT_QUERY:
+    if (parse_events(query_event_options, def_type, def, def_end, &f->mask))
+      goto error;
+    break;
+
+  case COND_EVENT_CONNECT:
+    if (parse_events(connect_event_options, def_type, def, def_end, &f->mask))
+      goto error;
+    break;
+  case COND_LOGGING:
+    if (parse_events(logging_options, def_type, def, def_end, &f->mask))
+      goto error;
+    break;
+  default:
+    goto error;
+  };
+
+ok:
+  return f;
+
+error:
+  free(f);
   return 0;
 }
+
+
+static struct filter_def *find_filter(const char *name)
+{
+  struct filter_def *cf;
+  for (cf= filter_list; cf; cf= cf->next)
+  {
+    if (strcmp(name, cf->name) == 0)
+      return cf;
+  }
+  return 0;
+}
+
+
+static int load_filters()
+{
+  char hosts[1024];
+  char names[1024];
+  char filters[2048];
+  const char *c_host, *c_name, *c_filter;
+  int result;
+
+  free_filters();
+  err_len= 0;
+
+  if ((result= execute_sql_command("select filtername, rule"
+                          " from mysql.server_audit_filters",
+                          names, filters, 0)))
+  {
+    if (result != 2)
+      explain_error("Can't load data from mysql.server_audit_filters.");
+    goto error;
+  }
+
+  c_name= names;
+  c_filter= filters;
+  while (*c_name)
+  {
+    struct filter_def *fd;
+    struct filter_cond *fc;
+    enum json_types vt;
+    const char *v, *c_filter_end= c_filter + strlen(c_filter);
+    int v_len;
+
+    vt= json_type(c_filter, c_filter_end, &v, &v_len);
+    if (!(fc= make_cond(COND_OR, vt, c_filter, c_filter_end)))
+    {
+      explain_error("Can't parse filter's '%s' definition %s.",
+                    c_name, c_filter);
+      result= 1;
+      goto error;
+    }
+
+    fd= (struct filter_def *) malloc(sizeof(struct filter_def));
+    strncpy(fd->name, c_name, sizeof(fd->name));
+    fd->rule= fc;
+    fd->next= filter_list;
+    filter_list= fd;
+
+    if (strcasecmp(c_name, "default") == 0)
+      default_filter= fd;
+
+    c_name+= strlen(c_name)+1;
+    c_filter+= strlen(c_filter)+1;
+  }
+
+
+  if ((result= execute_sql_command("select host, user, filtername from"
+                          " mysql.server_audit_users order by host, user",
+                          hosts, names, filters)))
+  {
+    if (result != 2)
+      explain_error("Can't load data from mysql.server_audit_users.");
+    goto error;
+  }
+
+  c_host= hosts;
+  c_name= names;
+  c_filter= filters;
+
+  while (*c_host)
+  {
+    size_t h_len= strlen(c_host);
+    size_t u_len= strlen(c_name);
+    size_t size;
+    char *blk;
+    struct user_def *u_d;
+
+    size= ALIGN_SIZE(sizeof(struct user_def)) + h_len + u_len + 2;
+    blk= (char *) malloc(size);
+    u_d= (struct user_def *) blk;
+    u_d->host= blk + ALIGN_SIZE(sizeof(struct user_def));
+    u_d->name= u_d->host + h_len + 1;
+    strcpy(u_d->host, c_host);
+    strcpy(u_d->name, c_name);
+    u_d->next= user_list;
+    user_list= u_d;
+
+    u_d->filter= find_filter(c_filter);
+    if (!u_d->filter)
+    {
+      explain_error("Can't find filter '%s' for user %s@%s.",
+                    c_filter, c_host, c_name);
+      result= 1;
+      goto error;
+    }
+
+    c_name+= u_len+1;
+    c_host+= h_len+1;
+    c_filter+= strlen(c_filter)+1;
+  }
+
+  return 0;
+
+error:
+  free_filters();
+  return result;
+}
+ 
+
+static int log_config(MYSQL_THD thd, const char *var_name, const char *value);
+static int log_uint_config(MYSQL_THD thd,
+                           const char *var_name, unsigned long long value);
+static void log_start_file()
+{
+  log_config(0, "file_path", file_path);
+  log_uint_config(0, "rotate_size", file_rotate_size);
+  log_uint_config(0, "file_rotations", rotations);
+}
+
 
 #if defined(__WIN__) && !defined(S_ISDIR)
 #define S_ISDIR(x) ((x) & _S_IFDIR)
 #endif /*__WIN__ && !S_ISDIR*/
 
-static int start_logging()
+static int start_logging(MYSQL_THD thd)
 {
   last_error_buf[0]= 0;
   log_write_failures= 0;
+
   if (output_type == OUTPUT_FILE)
   {
     char alt_path_buffer[FN_REFLEN+1+DEFAULT_FILENAME_LEN];
@@ -1082,14 +1291,17 @@ static int start_logging()
       my_snprintf(last_error_buf, sizeof(last_error_buf),
                   "Could not create file '%s'.", alt_fname);
       is_active= 0;
+      ADD_ATOMIC(internal_stop_logging, 1);
       CLIENT_ERROR(1, "SERVER AUDIT plugin can't create file '%s'.",
           MYF(ME_WARNING), alt_fname);
+      ADD_ATOMIC(internal_stop_logging, -1);
       return 1;
     }
     error_header();
     fprintf(stderr, "logging started to the file %s.\n", alt_fname);
     strncpy(current_log_buf, alt_fname, sizeof(current_log_buf)-1);
     current_log_buf[sizeof(current_log_buf)-1]= 0;
+    log_start_file();
   }
   else if (output_type == OUTPUT_SYSLOG)
   {
@@ -1098,6 +1310,10 @@ static int start_logging()
     fprintf(stderr, "logging started to the syslog.\n");
     strncpy(current_log_buf, "[SYSLOG]", sizeof(current_log_buf)-1);
     compile_time_assert(sizeof current_log_buf > sizeof "[SYSLOG]");
+    log_config(thd, "syslog_facility", syslog_facility_names[syslog_facility]);
+    log_config(thd, "syslog_ident", syslog_ident);
+    log_config(thd, "syslog_info", syslog_info);
+    log_config(thd, "syslog_priority", syslog_priority_names[syslog_priority]);
   }
   is_active= 1;
   return 0;
@@ -1123,38 +1339,360 @@ static int stop_logging()
 }
 
 
-static void setup_connection_simple(struct connection_info *ci)
+static int user_fits(const char *def, const char *name)
 {
-  ci->db_length= 0;
-  ci->user_length= 0;
-  ci->host_length= 0;
-  ci->ip_length= 0;
-  ci->query_length= 0;
-  ci->header= 0;
+  if (*def == 0) /* empty def, means fits all users */
+    return 1;
+
+  return strcmp(def, name) == 0;
 }
 
 
-static void setup_connection_connect(struct connection_info *cn,
-    const struct mysql_event_connection *event)
+static int host_fits(const char *def, const char *host, const char *ip)
 {
-  cn->query_id= 0;
-  cn->query_length= 0;
-  cn->log_always= 0;
-  cn->thread_id= event->thread_id;
-  get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-            event->database.str, event->database.length);
-  get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
-            event->user, event->user_length);
-  get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
-            event->host, event->host_length);
-  get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-            event->ip, event->ip_length);
-  cn->header= 0;
+  const char *whost;
+  long wip, ip_mask;
+
+  maria_update_hostname(&whost, &wip, &ip_mask, def);
+
+  return maria_compare_hostname(whost, wip, ip_mask, host, ip);
+}
+
+
+static struct filter_def *find_user_filter(const struct connection_info *ci)
+{
+  const struct user_def *cu;
+
+  for (cu= user_list; cu; cu= cu->next)
+  {
+    if (user_fits(cu->name, ci->user) &&
+        host_fits(cu->host, ci->host, ci->ip))
+      return cu->filter;
+  }
+
+  return default_filter;
+}
+
+
+static int get_next_word(const char *query, char *word)
+{
+  int len= 0;
+  char c;
+  while ((c= query[len]))
+  {
+    if (c >= 'a' && c <= 'z')
+      word[len]= 'A' + (c-'a');
+    else if (c >= 'A' && c <= 'Z')
+      word[len]= c;
+    else if (c == '_')
+      word[len]= c;
+    else
+      break;
+
+    if (len++ == MAX_KEYWORD)
+      return 0;
+  }
+  word[len]= 0;
+  return len;
+}
+
+
+static int parse_events(struct option_value *options, enum json_types s_type,
+                        const char *s, const char *s_end, unsigned long *mask)
+{
+  char wd[20];
+  int i;
+  enum json_types vt;
+  const char *v;
+  int v_len;
+
+  *mask= 0;
+
+  if (s_type == JSV_ARRAY)
+  {
+    unsigned long c_mask;
+    i= 0;
+    for (;;)
+    {
+      if ((vt= json_get_array_item(s, s_end, i, &v, &v_len)) ==
+          JSV_BAD_JSON)
+      {
+        explain_error("Bad JSON syntax for events.");
+        return 1;
+      }
+      if (vt == JSV_NOTHING)
+        break;
+      if (parse_events(options, vt, v, v+v_len, &c_mask))
+        return 1;
+      (*mask)|= c_mask;
+      i++;
+    }
+    return 0;
+  }
+
+  if (s_type != JSV_STRING)
+  {
+    explain_error("Events can only be an array or a string.");
+    return 1;
+  }
+
+  while (s < s_end)
+  {
+    while (*s == ' ')
+      s++;
+
+    if (s >= s_end)
+      break;
+
+    s+= get_next_word(s, wd);
+
+    for (i= 0; options[i].name; i++)
+    {
+      if (strcasecmp(options[i].name, wd) == 0)
+      {
+        *mask|= options[i].value;
+        break;
+      }
+    }
+
+    if (options[i].name == 0) /* Nothing found. */
+    {
+      explain_error("Unknown option %s.", wd);
+      return 1;
+    }
+
+    while (*s == ' ' || *s == ',')
+      s++;
+  }
+
+  return 0;
+}
+
+
+static int filter_query_type(const char *query, struct sa_keyword *kwd);
+
+
+static int int_do_filter(struct connection_info *ci, struct filter_cond *c)
+{
+  int mask= 1;
+  struct filter_cond *cf;
+  const char *query;
+
+  switch (c->func)
+  {
+  case COND_TRUE:
+    return 1;
+  case COND_FALSE:
+    return 0;
+  case COND_OR_NOT:
+  case COND_OR:
+    mask= c->func == COND_OR;
+    if (!c->arg_list)
+      return mask; /* No arguments means TRUE. */
+
+    for (cf= c->arg_list; cf; cf= cf->next)
+    {
+      if (int_do_filter(ci, cf))
+        return mask;
+    }
+    return !mask;
+
+  case COND_AND:
+  case COND_AND_NOT:
+    mask= c->func == COND_AND_NOT;
+    for (cf= c->arg_list; cf; cf= cf->next)
+    {
+      if (!int_do_filter(ci, cf))
+        return mask;
+    }
+    return !mask;
+
+  case COND_EVENT:
+    if (!(ci->event_type & c->mask))
+      return 0;
+
+    query= ci->query;
+
+    if (query && ci->event_type == EVENT_QUERY && c->query_mask)
+    {
+      const char *orig_query= query;
+
+      if (filter_query_type(query, keywords_to_skip))
+      {
+        char fword[MAX_KEYWORD + 1];
+        int len;
+        do
+        {
+          len= get_next_word(query, fword);
+          query+= len ? len : 1;
+          if (len == 3 && strncmp(fword, "FOR", 3) == 0)
+            break;
+        } while (*query);
+
+        if (*query == 0)
+          return 0;
+      }
+
+      if (c->query_mask & EVENT_OPT_QUERY_DDL)
+      {
+        if (!filter_query_type(query, not_ddl_keywords) &&
+            filter_query_type(query, ddl_keywords))
+          goto do_log_query;
+      }
+      if (c->query_mask & EVENT_OPT_QUERY_DML)
+      {
+        if (filter_query_type(query, dml_keywords))
+          goto do_log_query;
+      }
+      if (c->query_mask & EVENT_OPT_QUERY_DML_WRITE)
+      {
+        if (filter_query_type(query, dml_no_select_keywords))
+          goto do_log_query;
+      }
+      if (c->query_mask & EVENT_OPT_QUERY_DML_READ)
+      {
+        if (filter_query_type(query, dml_keywords) &&
+            !filter_query_type(query, dml_no_select_keywords))
+          goto do_log_query;
+      }
+      if (c->query_mask & EVENT_OPT_QUERY_DCL)
+      {
+        if (filter_query_type(query, dcl_keywords))
+          goto do_log_query;
+      }
+
+      return 0;
+do_log_query:
+      query= orig_query;
+    }
+    break;
+
+  case COND_EVENT_QUERY:
+    if (ci->event_type != EVENT_QUERY)
+      return 0;
+    if (c->mask == QUERY_OPT_ALL)
+      return 1;
+
+    query= ci->query;
+    {
+      const char *orig_query= query;
+
+      if (filter_query_type(query, keywords_to_skip))
+      {
+        char fword[MAX_KEYWORD + 1];
+        int len;
+        do
+        {
+          len= get_next_word(query, fword);
+          query+= len ? len : 1;
+          if (len == 3 && strncmp(fword, "FOR", 3) == 0)
+            break;
+        } while (*query);
+
+        if (*query == 0)
+          return 0;
+      }
+
+      if (c->mask & QUERY_OPT_DDL)
+      {
+        if (!filter_query_type(query, not_ddl_keywords) &&
+            filter_query_type(query, ddl_keywords))
+          goto do_log_query_2;
+      }
+      if (c->mask & QUERY_OPT_DML)
+      {
+        if (filter_query_type(query, dml_keywords))
+          goto do_log_query_2;
+      }
+      if (c->mask & QUERY_OPT_DML_WRITE)
+      {
+        if (filter_query_type(query, dml_no_select_keywords))
+          goto do_log_query_2;
+      }
+      if (c->mask & QUERY_OPT_DML_READ)
+      {
+        if (filter_query_type(query, dml_keywords) &&
+            !filter_query_type(query, dml_no_select_keywords))
+          goto do_log_query_2;
+      }
+      if (c->mask & QUERY_OPT_DCL)
+      {
+        if (filter_query_type(query, dcl_keywords))
+          goto do_log_query_2;
+      }
+
+      return 0;
+do_log_query_2:
+      query= orig_query;
+    }
+    break;
+
+  case COND_EVENT_TABLE:
+    if (ci->event_type != EVENT_TABLE)
+      return 0;
+
+    switch (ci->event_subclass)
+    {
+    case MYSQL_AUDIT_TABLE_LOCK:
+      if (ci->read_only)
+        return c->mask & TABLE_OPT_READ;
+      return c->mask & TABLE_OPT_WRITE;
+
+    case MYSQL_AUDIT_TABLE_CREATE:
+      return c->mask & TABLE_OPT_CREATE;
+
+    case MYSQL_AUDIT_TABLE_DROP:
+      return c->mask & TABLE_OPT_DROP;
+
+    case MYSQL_AUDIT_TABLE_RENAME:
+      return c->mask & TABLE_OPT_RENAME;
+
+    case MYSQL_AUDIT_TABLE_ALTER:
+      return c->mask & TABLE_OPT_ALTER;
+    default:
+      return 1;
+    }
+    break;
+
+  case COND_EVENT_CONNECT:
+    if (ci->event_type != EVENT_CONNECT)
+      return 0;
+
+    switch (ci->event_subclass)
+    {
+    case MYSQL_AUDIT_CONNECTION_CONNECT:
+      return c->mask & (ci->error_code ? CONNECT_OPT_FAILED_CONNECT :
+                                         CONNECT_OPT_CONNECT);
+    case MYSQL_AUDIT_CONNECTION_DISCONNECT:
+      return c->mask & CONNECT_OPT_DISCONNECT;
+    case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
+      return c->mask & CONNECT_OPT_CHANGE_USER;
+    default:;
+    };
+    break;
+
+  case COND_LOGGING:
+    return c->mask;
+
+  default:
+    break;
+  };
+
+  return 1;
+}
+
+
+static int do_filter(struct connection_info *ci)
+{
+  struct filter_def *f= find_user_filter(ci);
+  if (!f)
+    return 1;
+
+  return int_do_filter(ci, f->rule);
 }
 
 
 #define SAFE_STRLEN(s) (s ? strlen(s) : 0)
-#define SAFE_STRLEN_UI(s) ((unsigned int) (s ? strlen(s) : 0))
 static char empty_str[1]= { 0 };
 
 
@@ -1188,113 +1726,16 @@ static char escaped_char(char c)
 }
 
 
-static void setup_connection_initdb(struct connection_info *cn,
-    const struct mysql_event_general *event)
-{
-  size_t user_len, host_len, ip_len;
-  char uh_buffer[512];
-
-  cn->thread_id= event->general_thread_id;
-  cn->query_id= 0;
-  cn->query_length= 0;
-  cn->log_always= 0;
-  get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-            event->general_query, event->general_query_length);
-
-  if (get_user_host(event->general_user, event->general_user_length,
-                    uh_buffer, sizeof(uh_buffer),
-                    &user_len, &host_len, &ip_len))
-  {
-    /* The user@host line is incorrect. */
-    cn->user_length= 0;
-    cn->host_length= 0;
-    cn->ip_length= 0;
-  }
-  else
-  {
-    get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
-              uh_buffer, user_len);
-    get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
-              uh_buffer+user_len+1, host_len);
-    get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-              uh_buffer+user_len+1+host_len+1, ip_len);
-  }
-  cn->header= 0;
-}
-
-
-static void setup_connection_table(struct connection_info *cn,
-    const struct mysql_event_table *event)
-{
-  cn->thread_id= event->thread_id;
-  cn->query_id= query_counter++;
-  cn->log_always= 0;
-  cn->query_length= 0;
-  get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-            event->database.str, event->database.length);
-  get_str_n(cn->user, &cn->user_length, sizeof(cn->db),
-            event->user, SAFE_STRLEN(event->user));
-  get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
-            event->host, SAFE_STRLEN(event->host));
-  get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-            event->ip, SAFE_STRLEN(event->ip));
-  cn->header= 0;
-}
-
-
-static void setup_connection_query(struct connection_info *cn,
-    const struct mysql_event_general *event)
-{
-  size_t user_len, host_len, ip_len;
-  char uh_buffer[512];
-
-  cn->thread_id= event->general_thread_id;
-  cn->query_id= query_counter++;
-  cn->log_always= 0;
-  cn->query_length= 0;
-  get_str_n(cn->db, &cn->db_length, sizeof(cn->db), "", 0);
-
-  if (get_user_host(event->general_user, event->general_user_length,
-                    uh_buffer, sizeof(uh_buffer),
-                    &user_len, &host_len, &ip_len))
-  {
-    /* The user@host line is incorrect. */
-    cn->user_length= 0;
-    cn->host_length= 0;
-    cn->ip_length= 0;
-  }
-  else
-  {
-    get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
-              uh_buffer, user_len);
-    get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
-              uh_buffer+user_len+1, host_len);
-    get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-              uh_buffer+user_len+1+host_len+1, ip_len);
-  }
-  cn->header= 0;
-}
-
-
-static void change_connection(struct connection_info *cn,
-    const struct mysql_event_connection *event)
-{
-  get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
-            event->user, event->user_length);
-  get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-            event->ip, event->ip_length);
-}
-
 static int write_log(const char *message, size_t len, int take_lock)
 {
   int result= 0;
   if (take_lock)
-    flogger_mutex_lock(&lock_operations);
+    mysql_prlock_rdlock(&lock_operations);
 
   if (output_type == OUTPUT_FILE)
   {
     if (logfile &&
-        (is_active= (logger_write(logfile, message, len) == (int) len)))
+        (is_active= (logger_write(logfile, message, len) == (int)len)))
       goto exit;
     ++log_write_failures;
     result= 1;
@@ -1303,18 +1744,18 @@ static int write_log(const char *message, size_t len, int take_lock)
   {
     syslog(syslog_facility_codes[syslog_facility] |
            syslog_priority_codes[syslog_priority],
-           "%s %.*s", syslog_info, (int) len, message);
+           "%s %.*s", syslog_info, (int)len, message);
   }
 exit:
   if (take_lock)
-    flogger_mutex_unlock(&lock_operations);
+    mysql_prlock_unlock(&lock_operations);
   return result;
 }
 
 
 static size_t log_header(char *message, size_t message_len,
                       time_t *ts,
-                      const char *serverhost, size_t serverhost_len,
+                      const char *serverhost, unsigned int serverhost_len,
                       const char *username, unsigned int username_len,
                       const char *host, unsigned int host_len,
                       const char *userip, unsigned int userip_len,
@@ -1332,7 +1773,7 @@ static size_t log_header(char *message, size_t message_len,
   if (output_type == OUTPUT_SYSLOG)
     return my_snprintf(message, message_len,
         "%.*s,%.*s,%.*s,%d,%lld,%s",
-        (unsigned int) serverhost_len, serverhost,
+        serverhost_len, serverhost,
         username_len, username,
         host_len, host,
         connection_id, query_id, operation);
@@ -1349,9 +1790,69 @@ static size_t log_header(char *message, size_t message_len,
 }
 
 
+static int log_config(MYSQL_THD thd, const char *var_name, const char *value)
+{
+  time_t ctime;
+  size_t csize;
+  char message[1024];
+  const char *user= 0;
+  const char *host= 0;
+  const char *ip= 0;
+  const char *db= 0;
+  uint db_len= 0;
+  int status= 0;
+  unsigned long id= 0;
+
+  if (!logging)
+    return 0;
+
+  (void) time(&ctime);
+
+  if (thd)
+  {
+    LEX_CSTRING *dbs= thd_current_db(thd);
+    if (dbs)
+    {
+      db= dbs->str;
+      db_len= (uint) dbs->length;
+    }
+    user= thd_user_name(thd);
+    host= thd_client_host(thd);
+    ip= thd_client_ip(thd);
+    status= thd_current_status(thd);
+    id= thd_get_thread_id(thd);
+  }
+
+  if (!user) user= "";
+  if (!host) host= "";
+  if (!ip) ip= "";
+  if (!db) db= "";
+
+  csize= log_header(message, sizeof(message)-1, &ctime,
+                    servhost, servhost_len, user, (uint) strlen(user),
+                    host, (uint) strlen(host), ip, (uint) strlen(ip), id, 0,
+                    "AUDIT_CONFIG");
+
+  csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
+    ",%.*s,%s=%s,%d\n", (int) db_len, db, var_name, value, status);
+
+  return write_log(message, csize, 0);
+}
+
+
+static int log_uint_config(MYSQL_THD thd,
+                           const char *var_name, unsigned long long value)
+{
+  char ui_buf[30];
+  my_snprintf(ui_buf, sizeof(ui_buf), "%llu", value);
+  return log_config(thd, var_name, ui_buf);
+}
+
+
 static int log_connection(const struct connection_info *cn,
                           const struct mysql_event_connection *event,
-                          const char *type)
+                          const char *type,
+                          const char *qwe_string)
 {
   time_t ctime;
   size_t csize;
@@ -1360,14 +1861,14 @@ static int log_connection(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    cn->user, cn->user_length,
-                    cn->host, cn->host_length,
-                    cn->ip, cn->ip_length,
+                    cn->user, cn->user_len,
+                    cn->host, cn->host_len,
+                    cn->ip, cn->ip_len,
                     event->thread_id, 0, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-    ",%.*s,,%d", cn->db_length, cn->db, event->status);
+    ",%.*s,%s,%d", cn->db.length, cn->db.str, qwe_string, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log(message, csize + 1, 0);
 }
 
 
@@ -1388,7 +1889,7 @@ static int log_connection_event(const struct mysql_event_connection *event,
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
     ",%.*s,,%d", event->database.length, event->database.str, event->status);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log(message, csize + 1, 0);
 }
 
 
@@ -1431,6 +1932,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
   const char *res_start= result;
   const char *res_end= result + result_len - 2;
   size_t d_len;
+  char b_char;
 
   while (len)
   {
@@ -1468,28 +1970,27 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
 
       if (*next_s)
       {
-        const char b_char= *next_s++;
-        memset(result + d_len, '*', 5);
+        memmove(result + d_len, "*****", 5);
         result+= d_len + 5;
-
-        while (*next_s)
-        {
-          if (*next_s == b_char)
-          {
-            ++next_s;
-            break;
-          }
-          if (*next_s == '\\')
-          {
-            if (next_s[1])
-              next_s++;
-          }
-          next_s++;
-        }
+        b_char= *(next_s++);
       }
       else
         result+= d_len;
 
+      while (*next_s)
+      {
+        if (*next_s == b_char)
+        {
+          ++next_s;
+          break;
+        }
+        if (*next_s == '\\')
+        {
+          if (next_s[1])
+            next_s++;
+        }
+        next_s++;
+      }
       len-= (uint)(next_s - str);
       str= next_s;
       continue;
@@ -1497,73 +1998,22 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
 no_password:
     if (result >= res_end)
       break;
-    else
+    if ((b_char= escaped_char(*str)))
     {
-      const char b_char= escaped_char(*str);
-      if (b_char)
-      {
-        if (result+1 >= res_end)
-          break;
-        *(result++)= '\\';
-        *(result++)= b_char;
-      }
-      else if (is_space(*str))
-        *(result++)= ' ';
-      else
-        *(result++)= *str;
-      str++;
-      len--;
+      if (result+1 >= res_end)
+        break;
+      *(result++)= '\\';
+      *(result++)= b_char;
     }
+    else if (is_space(*str))
+      *(result++)= ' ';
+    else
+      *(result++)= *str;
+    str++;
+    len--;
   }
   *result= 0;
   return result - res_start;
-}
-
-
-
-static int do_log_user(const char *name, int take_lock)
-{
-  size_t len;
-  int result;
-
-  if (!name)
-    return 0;
-  len= strlen(name);
-
-  if (take_lock)
-    flogger_mutex_lock(&lock_operations);
-
-  if (incl_user_coll.n_users)
-    result= coll_search(&incl_user_coll, name, len) != 0;
-  else if (excl_user_coll.n_users)
-    result=  coll_search(&excl_user_coll, name, len) == 0;
-  else
-    result= 1;
-
-  if (take_lock)
-    flogger_mutex_unlock(&lock_operations);
-  return result;
-}
-
-
-static int get_next_word(const char *query, char *word)
-{
-  int len= 0;
-  char c;
-  while ((c= query[len]))
-  {
-    if (c >= 'a' && c <= 'z')
-      word[len]= 'A' + (c-'a');
-    else if (c >= 'A' && c <= 'Z')
-      word[len]= c;
-    else
-      break;
-
-    if (len++ == MAX_KEYWORD)
-      return 0;
-  }
-  word[len]= 0;
-  return len;
 }
 
 
@@ -1636,10 +2086,7 @@ not_in_list:
 }
 
 
-static int log_statement_ex(const struct connection_info *cn,
-                            time_t ev_time, unsigned long thd_id,
-                            const char *query, unsigned int query_len,
-                            int error_code, const char *type, int take_lock)
+static int log_statement(struct connection_info *cn, const char *type)
 {
   size_t csize;
   char message_loc[1024];
@@ -1647,87 +2094,20 @@ static int log_statement_ex(const struct connection_info *cn,
   size_t message_size= sizeof(message_loc);
   char *uh_buffer;
   size_t uh_buffer_size;
-  const char *db;
-  unsigned int db_length;
-  long long query_id;
   int result;
+  unsigned int query_len;
 
-  if ((db= cn->db))
-    db_length= cn->db_length;
-  else
-  {
-    db= "";
-    db_length= 0;
-  }
-
-  if (!(query_id= cn->query_id))
-    query_id= query_counter++;
-
-  if (query == 0)
-  {
-    /* Can happen after the error in mysqld_prepare_stmt() */
-    query= cn->query;
-    query_len= cn->query_length;
-    if (query == 0 || query_len == 0)
-      return 0;
-  }
-
-  if (query && !(events & EVENT_QUERY_ALL) &&
-      (events & EVENT_QUERY && !cn->log_always))
-  {
-    const char *orig_query= query;
-
-    if (filter_query_type(query, keywords_to_skip))
-    {
-      char fword[MAX_KEYWORD + 1];
-      int len;
-      do
-      {
-        len= get_next_word(query, fword);
-        query+= len ? len : 1;
-        if (len == 3 && strncmp(fword, "FOR", 3) == 0)
-          break;
-      } while (*query);
-
-      if (*query == 0)
-        return 0;
-    }
-
-    if (events & EVENT_QUERY_DDL)
-    {
-      if (!filter_query_type(query, not_ddl_keywords) &&
-          filter_query_type(query, ddl_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DML)
-    {
-      if (filter_query_type(query, dml_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DML_NO_SELECT)
-    {
-      if (filter_query_type(query, dml_no_select_keywords))
-        goto do_log_query;
-    }
-    if (events & EVENT_QUERY_DCL)
-    {
-      if (filter_query_type(query, dcl_keywords))
-        goto do_log_query;
-    }
-
-    return 0;
-do_log_query:
-    query= orig_query;
-  }
-
-  csize= log_header(message, message_size-1, &ev_time,
+  csize= log_header(message, message_size-1, &cn->query_time,
                     servhost, servhost_len,
-                    cn->user, cn->user_length,cn->host, cn->host_length,
-                    cn->ip, cn->ip_length, thd_id, query_id, type);
+                    cn->user, cn->user_len,
+                    cn->host, cn->host_len,
+                    cn->ip, cn->ip_len,
+                    cn->thread_id, cn->query_id, type);
 
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
-      ",%.*s,\'", db_length, db);
+      ",%.*s,\'", (int) cn->db.length, cn->db.str);
 
+  query_len= cn->query_len;
   if (query_log_limit > 0 && query_len > query_log_limit)
     query_len= query_log_limit;
 
@@ -1755,39 +2135,39 @@ do_log_query:
   if (query_log_limit > 0 && uh_buffer_size > query_log_limit+2)
     uh_buffer_size= query_log_limit+2;
 
-  switch (filter_query_type(query, passwd_keywords))
+  switch (filter_query_type(cn->query, passwd_keywords))
   {
     case SQLCOM_GRANT:
     case SQLCOM_CREATE_USER:
-      csize+= escape_string_hide_passwords(query, query_len,
+      csize+= escape_string_hide_passwords(cn->query, query_len,
                                            uh_buffer, uh_buffer_size,
                                            "IDENTIFIED", 10, "BY", 2, 0);
       break;
     case SQLCOM_CHANGE_MASTER:
-      csize+= escape_string_hide_passwords(query, query_len,
+      csize+= escape_string_hide_passwords(cn->query, query_len,
                                            uh_buffer, uh_buffer_size,
                                            "MASTER_PASSWORD", 15, "=", 1, 0);
       break;
     case SQLCOM_CREATE_SERVER:
     case SQLCOM_ALTER_SERVER:
-      csize+= escape_string_hide_passwords(query, query_len,
+      csize+= escape_string_hide_passwords(cn->query, query_len,
                                            uh_buffer, uh_buffer_size,
                                            "PASSWORD", 8, NULL, 0, 0);
       break;
     case SQLCOM_SET_OPTION:
-      csize+= escape_string_hide_passwords(query, query_len,
+      csize+= escape_string_hide_passwords(cn->query, query_len,
                                            uh_buffer, uh_buffer_size,
                                            "=", 1, NULL, 0, 1);
       break;
     default:
-      csize+= escape_string(query, query_len,
+      csize+= escape_string(cn->query, query_len,
                                uh_buffer, uh_buffer_size); 
       break;
   }
   csize+= my_snprintf(message+csize, message_size - 1 - csize,
-                      "\',%d", error_code);
+                      "\',%d", cn->error_code);
   message[csize]= '\n';
-  result= write_log(message, csize + 1, take_lock);
+  result= write_log(message, csize + 1, 0);
   if (message == big_buffer)
     flogger_mutex_unlock(&lock_bigbuffer);
 
@@ -1795,18 +2175,7 @@ do_log_query:
 }
 
 
-static int log_statement(const struct connection_info *cn,
-                         const struct mysql_event_general *event,
-                         const char *type)
-{
-  return log_statement_ex(cn, event->general_time, event->general_thread_id,
-                          event->general_query, event->general_query_length,
-                          event->general_error_code, type, 1);
-}
-
-
-static int log_table(const struct connection_info *cn,
-                     const struct mysql_event_table *event, const char *type)
+static int log_table(struct connection_info *cn, const char *type)
 {
   size_t csize;
   char message[1024];
@@ -1815,19 +2184,18 @@ static int log_table(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, SAFE_STRLEN_UI(event->user),
-                    event->host, SAFE_STRLEN_UI(event->host),
-                    event->ip, SAFE_STRLEN_UI(event->ip),
-                    event->thread_id, cn->query_id, type);
+                    cn->user, cn->user_len,
+                    cn->host, cn->host_len,
+                    cn->ip, cn->ip_len,
+                    cn->thread_id, cn->query_id, type);
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
-            ",%.*s,%.*s,",event->database.length, event->database.str,
-                          event->table.length, event->table.str);
-  message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+            ",%.*s,%.*s,\n", cn->db.length,  cn->db.str,
+                             cn->table.length, cn->table.str);
+  return write_log(message, csize, 0);
 }
 
 
-static int log_rename(const struct connection_info *cn,
+static int log_rename(struct connection_info *cn,
                       const struct mysql_event_table *event)
 {
   size_t csize;
@@ -1837,9 +2205,7 @@ static int log_rename(const struct connection_info *cn,
   (void) time(&ctime);
   csize= log_header(message, sizeof(message)-1, &ctime,
                     servhost, servhost_len,
-                    event->user, SAFE_STRLEN_UI(event->user),
-                    event->host, SAFE_STRLEN_UI(event->host),
-                    event->ip, SAFE_STRLEN_UI(event->ip),
+                    cn->user, cn->user_len, cn->host, cn->host_len, cn->ip, cn->ip_len,
                     event->thread_id, cn->query_id, "RENAME");
   csize+= my_snprintf(message+csize, sizeof(message) - 1 - csize,
             ",%.*s,%.*s|%.*s.%.*s,",event->database.length, event->database.str,
@@ -1847,191 +2213,22 @@ static int log_rename(const struct connection_info *cn,
                          event->new_database.length, event->new_database.str,
                          event->new_table.length, event->new_table.str);
   message[csize]= '\n';
-  return write_log(message, csize + 1, 1);
+  return write_log(message, csize + 1, 0);
 }
 
-
-static int event_query_command(const struct mysql_event_general *event)
+static int event_query_command(MYSQL_THD thd, int error_code)
 {
-  return (event->general_command_length == 5 &&
-           strncmp(event->general_command, "Query", 5) == 0) ||
-         (event->general_command_length == 7 &&
-           (strncmp(event->general_command, "Execute", 7) == 0 ||
-             (event->general_error_code != 0 &&
-              strncmp(event->general_command, "Prepare", 7) == 0)));
+  enum enum_server_command cmd= thd_current_command(thd);
+
+  return cmd == COM_QUERY ||
+         cmd == COM_STMT_EXECUTE ||
+         (error_code != 0 && cmd == COM_STMT_PREPARE);
 }
 
 
-static void update_general_user(struct connection_info *cn,
-    const struct mysql_event_general *event)
-{
-  char uh_buffer[768];
-  size_t user_len, host_len, ip_len;
-  if (cn->user_length == 0 && cn->host_length == 0 && cn->ip_length == 0 &&
-      get_user_host(event->general_user, event->general_user_length,
-                    uh_buffer, sizeof(uh_buffer),
-                    &user_len, &host_len, &ip_len) == 0)
-  {
-    get_str_n(cn->user, &cn->user_length, sizeof(cn->user), 
-              uh_buffer, user_len);
-    get_str_n(cn->host, &cn->host_length, sizeof(cn->host), 
-              uh_buffer+user_len+1, host_len);
-    get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip), 
-              uh_buffer+user_len+1+host_len+1, ip_len);
-  }
-
-}
-
-
-static struct connection_info ci_disconnect_buffer;
-
-#define AA_FREE_CONNECTION 1
-#define AA_CHANGE_USER 2
-
-static void update_connection_info(struct connection_info *cn,
-    unsigned int event_class, const void *ev, int *after_action)
-{
-  *after_action= 0;
-
-  switch (event_class) {
-  case MYSQL_AUDIT_GENERAL_CLASS:
-  {
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
-    switch (event->event_subclass) {
-      case MYSQL_AUDIT_GENERAL_LOG:
-      {
-        int init_db_command= event->general_command_length == 7 &&
-          strncmp(event->general_command, "Init DB", 7) == 0;
-        if (!ci_needs_setup(cn))
-        {
-          if (init_db_command)
-          {
-            /* Change DB */
-            if (mysql_57_started)
-              get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                  event->database.str, event->database.length);
-            else
-              get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                  event->general_query, event->general_query_length);
-          }
-          cn->query_id= mode ? query_counter++ : event->query_id;
-          cn->query= event->general_query;
-          cn->query_length= event->general_query_length;
-          cn->query_time= (time_t) event->general_time;
-          update_general_user(cn, event);
-        }
-        else if (init_db_command)
-          setup_connection_initdb(cn, event);
-        else if (event_query_command(event))
-          setup_connection_query(cn, event);
-        else
-          setup_connection_simple(cn);
-        break;
-      }
-
-      case MYSQL_AUDIT_GENERAL_STATUS:
-        if (event_query_command(event))
-        {
-          if (ci_needs_setup(cn))
-            setup_connection_query(cn, event);
-
-          if (mode == 0 && cn->db_length == 0 && event->database.length > 0)
-            get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                      event->database.str, event->database.length);
-
-          if (event->general_error_code == 0)
-          {
-            /* We need to check if it's the USE command to change the DB */
-            int use_command= event->general_query_length > 4 &&
-              strncasecmp(event->general_query, "use ", 4) == 0;
-            if (use_command)
-            {
-              /* Change DB */
-              if (mode)
-                get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                    event->general_query + 4, event->general_query_length - 4);
-              else
-                get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                    event->database.str, event->database.length);
-            }
-          }
-          update_general_user(cn, event);
-        }
-        break;
-      case MYSQL_AUDIT_GENERAL_ERROR:
-        /*
-          We need this because the MariaDB returns NULL query field for the
-          MYSQL_AUDIT_GENERAL_STATUS in the mysqld_stmt_prepare.
-          As a result we get empty QUERY field for errors.
-        */
-        if (ci_needs_setup(cn))
-          setup_connection_query(cn, event);
-        cn->query_id= mode ? query_counter++ : event->query_id;
-        get_str_n(cn->query_buffer, &cn->query_length, sizeof(cn->query_buffer),
-            event->general_query, event->general_query_length);
-        cn->query= cn->query_buffer;
-        cn->query_time= (time_t) event->general_time;
-        break;
-      default:;
-    }
-    break;
-  }
-  case MYSQL_AUDIT_TABLE_CLASS:
-  {
-    const struct mysql_event_table *event =
-      (const struct mysql_event_table *) ev;
-    if (ci_needs_setup(cn))
-      setup_connection_table(cn, event);
-
-    if (cn->user_length == 0 && cn->host_length == 0 && cn->ip_length == 0)
-    {
-      get_str_n(cn->user, &cn->user_length, sizeof(cn->user),
-                event->user, SAFE_STRLEN(event->user));
-      get_str_n(cn->host, &cn->host_length, sizeof(cn->host),
-                event->host, SAFE_STRLEN(event->host));
-      get_str_n(cn->ip, &cn->ip_length, sizeof(cn->ip),
-                event->ip, SAFE_STRLEN(event->ip));
-    }
-
-    if (cn->db_length == 0 && event->database.length != 0)
-      get_str_n(cn->db, &cn->db_length, sizeof(cn->db),
-                event->database.str, event->database.length);
-
-    if (mode == 0)
-      cn->query_id= event->query_id;
-    break;
-  }
-  case MYSQL_AUDIT_CONNECTION_CLASS:
-  {
-    const struct mysql_event_connection *event =
-      (const struct mysql_event_connection *) ev;
-    switch (event->event_subclass)
-    {
-      case MYSQL_AUDIT_CONNECTION_CONNECT:
-        setup_connection_connect(cn, event);
-        break;
-      case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
-        *after_action= AA_CHANGE_USER;
-        break;
-      default:;
-    }
-    break;
-  }
-  default:
-    break;
-  }
-}
-
-
-struct connection_info cn_error_buffer;
-
-
-#define FILTER(MASK) (events == 0 || (events & MASK))
 void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 {
-  struct connection_info *cn= 0;
-  int after_action= 0;
+  struct connection_info *cn;
 
   /* That one is important as this function can be called with      */
   /* &lock_operations locked when the server logs an error reported */
@@ -2039,268 +2236,182 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   if (!thd || internal_stop_logging)
     return;
 
-  if (maria_55_started && debug_server_started &&
-      event_class == MYSQL_AUDIT_GENERAL_CLASS)
-  {
-    /*
-      There's a bug in MariaDB 5.5 that prevents using thread local
-      variables in some cases.
-      The 'select * from notexisting_table;' query produces such case.
-      So just use the static buffer in this case.
-    */
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
-
-    if (event->event_subclass == MYSQL_AUDIT_GENERAL_ERROR ||
-        (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS && 
-         event->general_query_length == 0 &&
-         cn_error_buffer.query_id == event->query_id))
-    {
-      cn= &cn_error_buffer;
-      cn->header= 1;
-    }
-    else
-      cn= get_loc_info(thd);
-  }
-  else
-  {
-    cn= get_loc_info(thd);
-  }
-
-  update_connection_info(cn, event_class, ev, &after_action);
-
   if (!logging)
-  {
-    if (cn)
-      cn->log_always= 0;
-    goto exit_func;
-  }
+    return;
 
-  if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
-      cn && (cn->log_always || do_log_user(cn->user, 1)))
+  if (!(cn= get_loc_info(thd)))
+    return;
+
+  mysql_prlock_rdlock(&lock_operations);
+
+  if (event_class == MYSQL_AUDIT_GENERAL_CLASS)
   {
-    const struct mysql_event_general *event =
-      (const struct mysql_event_general *) ev;
+    const struct mysql_event_general *event = (const struct mysql_event_general *) ev;
 
     /*
       Only one subclass is logged.
     */
     if (event->event_subclass == MYSQL_AUDIT_GENERAL_STATUS &&
-        event_query_command(event))
+        event_query_command(thd, event->general_error_code))
     {
-      log_statement(cn, event, "QUERY");
-      cn->query_length= 0; /* So the log_current_query() won't log this again. */
-      cn->log_always= 0;
+      cn->thd= thd;
+      cn->db= event->database;
+      setc(thd_user_name(thd), &cn->user, &cn->user_len);
+      setc(thd_client_host(thd), &cn->host, &cn->host_len);
+      setc(thd_client_ip(thd), &cn->ip, &cn->ip_len);
+      cn->query= event->general_query;
+      cn->query_len= event->general_query_length;
+      if (cn->query == 0)
+      {
+#ifdef DBUG_OFF
+        /* cn->query can only be 0 in extreme errors like OUT-OF-MEMORY */
+        /* so don't fix it for the DEBUG version. */
+        cn->query= "";
+#endif /*DBUG_OFF*/
+        cn->query_len= 0;
+      }
+      cn->query_time= event->general_time;
+      cn->event_type= EVENT_QUERY;
+      cn->event_subclass= -1;
+      cn->error_code= event->general_error_code;
+      cn->thread_id= event->general_thread_id;
+      cn->query_id= thd_query_id(thd);
+
+      if (do_filter(cn))
+      {
+        log_statement(cn, "QUERY");
+      }
     }
   }
-  else if (event_class == MYSQL_AUDIT_TABLE_CLASS && FILTER(EVENT_TABLE) && cn)
+  else if (event_class == MYSQL_AUDIT_TABLE_CLASS)
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
-    if (do_log_user(event->user, 1))
+
+    cn->thd= thd;
+    cn->db= event->database;
+    cn->table= event->table;
+    cn->new_db= event->new_database;
+    cn->new_table= event->new_table;
+    setc(event->user, &cn->user, &cn->user_len);
+    setc(event->host, &cn->host, &cn->host_len);
+    setc(event->ip, &cn->ip, &cn->ip_len);
+    cn->query= 0;
+    cn->query_time= 0;
+    cn->event_type= EVENT_TABLE;
+    cn->event_subclass= (int) event->event_subclass;
+    cn->error_code= 0;
+    cn->read_only= event->read_only;
+    cn->query_id= event->query_id;
+    cn->thread_id= event->thread_id;
+
+    if (do_filter(cn))
     {
       switch (event->event_subclass)
       {
         case MYSQL_AUDIT_TABLE_LOCK:
-          log_table(cn, event, event->read_only ? "READ" : "WRITE");
+          log_table(cn, event->read_only ? "READ" : "WRITE");
           break;
         case MYSQL_AUDIT_TABLE_CREATE:
-          log_table(cn, event, "CREATE");
+          log_table(cn, "CREATE");
           break;
         case MYSQL_AUDIT_TABLE_DROP:
-          log_table(cn, event, "DROP");
+          log_table(cn, "DROP");
           break;
         case MYSQL_AUDIT_TABLE_RENAME:
           log_rename(cn, event);
           break;
         case MYSQL_AUDIT_TABLE_ALTER:
-          log_table(cn, event, "ALTER");
+          log_table(cn, "ALTER");
           break;
         default:
           break;
       }
     }
   }
-  else if (event_class == MYSQL_AUDIT_CONNECTION_CLASS &&
-           FILTER(EVENT_CONNECT) && cn)
+  else if (event_class == MYSQL_AUDIT_CONNECTION_CLASS && cn)
   {
     const struct mysql_event_connection *event =
       (const struct mysql_event_connection *) ev;
-    switch (event->event_subclass)
+
+    cn->thd= thd;
+    cn->thread_id= event->thread_id;
+    cn->db= event->database;
+    cn->user= event->user;
+    cn->user_len= event->user_length;
+    if (!cn->user)
     {
+      cn->user= "";
+      cn->user_len= 0;
+    }
+    cn->host= event->host;
+    cn->host_len= event->host_length;
+    if (!cn->host)
+    {
+      cn->host= "";
+      cn->host_len= 0;
+    }
+    cn->ip= event->ip;
+    cn->ip_len= event->ip_length;
+    if (!cn->ip)
+    {
+      cn->ip= "";
+      cn->ip_len= 0;
+    }
+    cn->event_type= EVENT_CONNECT;
+    cn->event_subclass= (int) event->event_subclass;
+    cn->error_code= event->status;
+
+    cn->read_only= 0;
+    cn->query_id= 0;
+    cn->query= 0;
+    cn->query_time= 0;
+
+    if (do_filter(cn))
+    {
+      switch (event->event_subclass)
+      {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
-        log_connection(cn, event, event->status ? "FAILED_CONNECT": "CONNECT");
+        log_connection(cn, event, event->status ? "FAILED_CONNECT": "CONNECT", "");
         break;
       case MYSQL_AUDIT_CONNECTION_DISCONNECT:
-        if (use_event_data_for_disconnect)
           log_connection_event(event, "DISCONNECT");
-        else
-          log_connection(&ci_disconnect_buffer, event, "DISCONNECT");
         break;
       case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
-        log_connection(cn, event, "CHANGEUSER");
+      {
+        const char *user= thd_user_name(thd); /* that returns the new user */
+        char userbuf[100];
+
+        if (!user)
+          user= "";
+
+        my_snprintf(userbuf, sizeof(userbuf), "`%s`", user);
+
+        log_connection(cn, event, "CHANGE_USER", userbuf);
         break;
+      }
       default:;
+      }
     }
-  }
-exit_func:
-  /*
-    This must work always, whether logging is ON or not.
-  */
-  if (after_action)
-  {
-    switch (after_action) {
-    case AA_CHANGE_USER:
+
+    if (event->event_subclass == MYSQL_AUDIT_CONNECTION_CHANGE_USER &&
+        event->status == 0)
     {
-      const struct mysql_event_connection *event =
-        (const struct mysql_event_connection *) ev;
-      change_connection(cn, event);
-      break;
+      cn->db= *thd_current_db(thd);
+      setc(thd_user_name(thd), &cn->user, &cn->user_len);
+      setc(thd_client_host(thd), &cn->host, &cn->host_len);
+      setc(thd_client_ip(thd), &cn->ip, &cn->ip_len);
+
+      if (do_filter(cn))
+        log_connection(cn, event, "CHANGE_USER_DONE", "");
+
     }
-    default:
-      break;
-    }
   }
+
+  mysql_prlock_unlock(&lock_operations);
 }
 
 
-struct mysql_event_general_v8
-{
-  unsigned int event_class;
-  unsigned int event_subclass;
-  int general_error_code;
-  unsigned long general_thread_id;
-  const char *general_user;
-  unsigned int general_user_length;
-  const char *general_command;
-  unsigned int general_command_length;
-  const char *general_query;
-  unsigned int general_query_length;
-  struct charset_info_st *general_charset;
-  unsigned long long general_time;
-  unsigned long long general_rows;
-};
-
-
-static void auditing_v8(MYSQL_THD thd, struct mysql_event_general_v8 *ev_v8)
-{
-#ifdef __linux__
-#ifdef DBUG_OFF
-  #ifdef __x86_64__
-  static const int cmd_off= 4200;
-  static const int db_off= 120;
-  static const int db_len_off= 128;
-  #else
-  static const int cmd_off= 2668;
-  static const int db_off= 60;
-  static const int db_len_off= 64;
-  #endif /*x86_64*/
-#else
-  #ifdef __x86_64__
-  static const int cmd_off= 4432;
-  static const int db_off= 120;
-  static const int db_len_off= 128;
-  #else
-  static const int cmd_off= 2808;
-  static const int db_off= 64;
-  static const int db_len_off= 68;
-  #endif /*x86_64*/
-#endif /*DBUG_OFF*/
-#endif /* __linux__ */
-
-  struct mysql_event_general event;
-
-  if (ev_v8->event_class != MYSQL_AUDIT_GENERAL_CLASS)
-    return;
-
-  event.event_subclass= ev_v8->event_subclass;
-  event.general_error_code= ev_v8->general_error_code;
-  event.general_thread_id= ev_v8->general_thread_id;
-  event.general_user= ev_v8->general_user;
-  event.general_user_length= ev_v8->general_user_length;
-  event.general_command= ev_v8->general_command;
-  event.general_command_length= ev_v8->general_command_length;
-  event.general_query= ev_v8->general_query;
-  event.general_query_length= ev_v8->general_query_length;
-  event.general_charset= ev_v8->general_charset;
-  event.general_time= ev_v8->general_time;
-  event.general_rows= ev_v8->general_rows;
-  event.database.str= 0;
-  event.database.length= 0;
-
-  if (event.general_query_length > 0)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_STATUS;
-    event.general_command= "Query";
-    event.general_command_length= 5;
-#ifdef __linux__
-    event.database.str= *(char **) (((char *) thd) + db_off);
-    event.database.length= *(size_t *) (((char *) thd) + db_len_off);
-#endif /*__linux*/
-  }
-#ifdef __linux__
-  else if (*((int *) (((char *)thd) + cmd_off)) == 2)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_LOG;
-    event.general_command= "Init DB";
-    event.general_command_length= 7;
-    event.general_query= *(char **) (((char *) thd) + db_off);
-    event.general_query_length= *(size_t *) (((char *) thd) + db_len_off);
-  }
-#endif /*__linux*/
-  auditing(thd, ev_v8->event_class, &event);
-}
-
-
-static void auditing_v13(MYSQL_THD thd, unsigned int *ev_v0)
-{
-  struct mysql_event_general event= *(const struct mysql_event_general *) (ev_v0+1);
-
-  if (event.general_query_length > 0)
-  {
-    event.event_subclass= MYSQL_AUDIT_GENERAL_STATUS;
-    event.general_command= "Query";
-    event.general_command_length= 5;
-  }
-  auditing(thd, ev_v0[0], &event);
-}
-
-
-int get_db_mysql57(MYSQL_THD thd, char **name, size_t *len)
-{
-#ifdef __linux__
-  int db_off;
-  int db_len_off;
-  if (debug_server_started)
-  {
-#ifdef __x86_64__
-    db_off= 608;
-    db_len_off= 616;
-#else
-    db_off= 0;
-    db_len_off= 0;
-#endif /*x86_64*/
-  }
-  else
-  {
-#ifdef __x86_64__
-    db_off= 536;
-    db_len_off= 544;
-#else
-    db_off= 0;
-    db_len_off= 0;
-#endif /*x86_64*/
-  }
-
-  *name= *(char **) (((char *) thd) + db_off);
-  *len= *((size_t *) (((char*) thd) + db_len_off));
-  if (*name && (*name)[*len] != 0)
-    return 1;
-  return 0;
-#else
-  return 1;
-#endif
-}
 /*
    As it's just too difficult to #include "sql_class.h",
    let's just copy the necessary part of the system_variables
@@ -2425,32 +2536,14 @@ static int server_audit_init(void *p __attribute__((unused)))
   servhost_len= (uint)strlen(servhost);
 
   logger_init_mutexes();
-#if defined(HAVE_PSI_INTERFACE) && !defined(FLOGGER_NO_PSI)
+#ifdef HAVE_PSI_INTERFACE
   if (PSI_server)
     PSI_server->register_mutex("server_audit", mutex_key_list, 1);
 #endif
-  flogger_mutex_init(key_LOCK_operations, &lock_operations, MY_MUTEX_INIT_FAST);
-  flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
+  mysql_prlock_init(key_LOCK_operations, &lock_operations);
   flogger_mutex_init(key_LOCK_operations, &lock_bigbuffer, MY_MUTEX_INIT_FAST);
+  flogger_mutex_init(key_LOCK_atomic, &lock_atomic, MY_MUTEX_INIT_FAST);
 
-  coll_init(&incl_user_coll);
-  coll_init(&excl_user_coll);
-
-  if (incl_users)
-  {
-    if (excl_users)
-    {
-      incl_users= excl_users= NULL;
-      error_header();
-      fprintf(stderr, "INCL_DML_USERS and EXCL_DML_USERS specified"
-                      " simultaneously - both set to empty\n");
-    }
-    update_incl_users(NULL, NULL, NULL, &incl_users);
-  }
-  else if (excl_users)
-  {
-    update_excl_users(NULL, NULL, NULL, &excl_users);
-  }
 
   error_header();
   fprintf(stderr, "MariaDB Audit Plugin version %s%s STARTED.\n",
@@ -2458,7 +2551,7 @@ static int server_audit_init(void *p __attribute__((unused)))
 
   /* The Query Cache shadows TABLE events if the result is taken from it */
   /* so we warn users if both Query Cashe and TABLE events enabled.      */
-  if (!started_mysql && FILTER(EVENT_TABLE))
+  if (!started_mysql)
   {
     ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");
     if (qc_size == NULL || *qc_size != 0)
@@ -2470,23 +2563,22 @@ static int server_audit_init(void *p __attribute__((unused)))
       {
         error_header();
         fprintf(stderr, "Query cache is enabled with the TABLE events."
-                        " Some table reads can be veiled.");
+                        " Some table reads can be veiled.\n");
       }
     }
   }
 
-  ci_disconnect_buffer.header= 10;
-  ci_disconnect_buffer.thread_id= 0;
-  ci_disconnect_buffer.query_id= 0;
-  ci_disconnect_buffer.db_length= 0;
-  ci_disconnect_buffer.user_length= 0;
-  ci_disconnect_buffer.host_length= 0;
-  ci_disconnect_buffer.ip_length= 0;
-  ci_disconnect_buffer.query= empty_str;
-  ci_disconnect_buffer.query_length= 0;
-
   if (logging)
-    start_logging();
+  {
+    ADD_ATOMIC(internal_stop_logging, 1);
+    if (load_filters())
+    {
+      explain_error("Filters aren't loaded, logging everything.");
+      memcpy(last_error_buf, err_msg, err_len+1);
+    }
+    start_logging(0);
+    ADD_ATOMIC(internal_stop_logging, -1);
+  }
 
   init_done= 1;
   return 0;
@@ -2507,9 +2599,8 @@ static int server_audit_deinit(void *p __attribute__((unused)))
   if (!init_done)
     return 0;
 
+  free_filters();
   init_done= 0;
-  coll_free(&incl_user_coll);
-  coll_free(&excl_user_coll);
 
   if (output_type == OUTPUT_FILE && logfile)
     logger_close(logfile);
@@ -2517,9 +2608,9 @@ static int server_audit_deinit(void *p __attribute__((unused)))
     closelog();
 
   (void) free(big_buffer);
-  flogger_mutex_destroy(&lock_operations);
-  flogger_mutex_destroy(&lock_atomic);
+  mysql_prlock_destroy(&lock_operations);
   flogger_mutex_destroy(&lock_bigbuffer);
+  flogger_mutex_destroy(&lock_atomic);
 
   error_header();
   fprintf(stderr, "STOPPED\n");
@@ -2532,8 +2623,54 @@ static void rotate_log(MYSQL_THD thd  __attribute__((unused)),
                        void *var_ptr  __attribute__((unused)),
                        const void *save  __attribute__((unused)))
 {
+  log_config(thd, "file_rotate_now", "ON");
   if (output_type == OUTPUT_FILE && logfile && *(my_bool*) save)
+  {
     (void) logger_rotate(logfile);
+    log_start_file();
+  }
+}
+
+
+static void do_reload_filters(MYSQL_THD thd  __attribute__((unused)),
+                              struct st_mysql_sys_var *var  __attribute__((unused)),
+                              void *var_ptr  __attribute__((unused)),
+                              const void *save  __attribute__((unused)))
+{
+  struct filter_def *old_filter_list;
+  struct filter_def *old_default_filter;
+  struct user_def *old_user_list;
+
+  ADD_ATOMIC(internal_stop_logging, 1);
+  mysql_prlock_wrlock(&lock_operations);
+
+  old_filter_list= filter_list;
+  old_default_filter= default_filter;
+  old_user_list= user_list;
+
+  filter_list= 0;
+  default_filter= 0;
+  user_list= 0;
+
+  if (load_filters())
+  {
+    log_config(thd, "failed reload_filters", "ON");
+    CLIENT_ERROR(1, "%.*s SERVER AUDIT can't load filters - old filters are saved.",
+                 MYF(ME_FATAL), (int) err_len, err_msg);
+    explain_error("can't load filters - old filters are saved.");
+    memcpy(last_error_buf, err_msg, err_len+1);
+    filter_list= old_filter_list;
+    default_filter= old_default_filter;
+    user_list= old_user_list;
+  }
+  else
+  {
+    log_config(thd, "reload_filters", "ON");
+    free_filters_ex(&old_filter_list, &old_default_filter, &old_user_list);
+  }
+
+  mysql_prlock_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
 }
 
 
@@ -2552,7 +2689,7 @@ mysql_declare_plugin(server_audit)
   &mysql_descriptor,
   "SERVER_AUDIT",
   " Alexey Botchkov (MariaDB Corporation)",
-  "Audit the server activity",
+  "MariaDB Enterprise Audit",
   PLUGIN_LICENSE_GPL,
   server_audit_init_mysql,
   server_audit_deinit,
@@ -2580,7 +2717,7 @@ maria_declare_plugin(server_audit)
   &maria_descriptor,
   "SERVER_AUDIT",
   "Alexey Botchkov (MariaDB Corporation)",
-  "Audit the server activity",
+  "MariaDB Enterprise Audit",
   PLUGIN_LICENSE_GPL,
   server_audit_init,
   server_audit_deinit,
@@ -2593,30 +2730,6 @@ maria_declare_plugin(server_audit)
 maria_declare_plugin_end;
 
 
-static void mark_always_logged(MYSQL_THD thd)
-{
-  struct connection_info *cn;
-  if (thd && (cn= get_loc_info(thd)))
-    cn->log_always= 1;
-}
-
-
-static void log_current_query(MYSQL_THD thd)
-{
-  struct connection_info *cn;
-  if (!thd)
-    return;
-  cn= get_loc_info(thd);
-  if (!ci_needs_setup(cn) && cn->query_length)
-  {
-    cn->log_always= 1;
-    log_statement_ex(cn, cn->query_time, thd_get_thread_id(thd),
-		     cn->query, cn->query_length, 0, "QUERY", 0);
-    cn->log_always= 0;
-  }
-}
-
-
 static void update_file_path(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
@@ -2624,14 +2737,11 @@ static void update_file_path(MYSQL_THD thd,
   char *new_name= (*(char **) save) ? *(char **) save : empty_str;
 
   ADD_ATOMIC(internal_stop_logging, 1);
+  mysql_prlock_wrlock(&lock_operations);
   error_header();
   fprintf(stderr, "Log file name was changed to '%s'.\n", new_name);
 
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-
-  if (logging)
-    log_current_query(thd);
+  log_config(thd, "file_path", new_name);
 
   if (logging && output_type == OUTPUT_FILE)
   {
@@ -2639,12 +2749,12 @@ static void update_file_path(MYSQL_THD thd,
 
     file_path= new_name;
     stop_logging();
-    if (start_logging())
+    if (start_logging(thd))
     {
       file_path= sav_path;
       error_header();
       fprintf(stderr, "Reverting log filename back to '%s'.\n", file_path);
-      logging= (start_logging() == 0);
+      logging= (start_logging(thd) == 0);
       if (!logging)
       {
         error_header();
@@ -2659,8 +2769,7 @@ static void update_file_path(MYSQL_THD thd,
   path_buffer[sizeof(path_buffer)-1]= 0;
   file_path= path_buffer;
 exit_func:
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
+  mysql_prlock_unlock(&lock_operations);
   ADD_ATOMIC(internal_stop_logging, -1);
 }
 
@@ -2673,12 +2782,27 @@ static void update_file_rotations(MYSQL_THD thd  __attribute__((unused)),
   error_header();
   fprintf(stderr, "Log file rotations was changed to '%d'.\n", rotations);
 
+  log_uint_config(thd, "file_rotattions", rotations);
+
   if (!logging || output_type != OUTPUT_FILE)
     return;
 
-  flogger_mutex_lock(&lock_operations);
+  mysql_prlock_wrlock(&lock_operations);
   logfile->rotations= rotations;
-  flogger_mutex_unlock(&lock_operations);
+  mysql_prlock_unlock(&lock_operations);
+}
+
+
+static void update_query_log_limit(MYSQL_THD thd  __attribute__((unused)),
+              struct st_mysql_sys_var *var  __attribute__((unused)),
+              void *var_ptr  __attribute__((unused)), const void *save)
+{
+  query_log_limit= *(unsigned int *) save;
+  error_header();
+  fprintf(stderr, "Query log limit was changed to '%d'.\n", query_log_limit);
+
+  log_uint_config(thd, "query_log_Limit", query_log_limit);
+
 }
 
 
@@ -2690,97 +2814,14 @@ static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
   error_header();
   fprintf(stderr, "Log file rotate size was changed to '%lld'.\n",
           file_rotate_size);
+  log_uint_config(thd, "rotate_size", file_rotate_size);
 
   if (!logging || output_type != OUTPUT_FILE)
     return;
 
-  flogger_mutex_lock(&lock_operations);
+  mysql_prlock_wrlock(&lock_operations);
   logfile->size_limit= file_rotate_size;
-  flogger_mutex_unlock(&lock_operations);
-}
-
-
-static int check_users(void *save, struct st_mysql_value *value,
-                       size_t s, const char *name)
-{
-  const char *users;
-  int len= 0;
-
-  users= value->val_str(value, NULL, &len);
-  if ((size_t) len > s)
-  {
-    error_header();
-    fprintf(stderr,
-            "server_audit_%s_users value can't be longer than %zu characters.\n",
-            name, s);
-    return 1;
-  }
-  *((const char**)save)= users;
-  return 0;
-}
-
-static int check_incl_users(MYSQL_THD thd  __attribute__((unused)),
-                            struct st_mysql_sys_var *var  __attribute__((unused)),
-                            void *save, struct st_mysql_value *value)
-{
-  return check_users(save, value, sizeof(incl_user_buffer), "incl");
-}
-
-static int check_excl_users(MYSQL_THD thd  __attribute__((unused)),
-                            struct st_mysql_sys_var *var  __attribute__((unused)),
-                            void *save, struct st_mysql_value *value)
-{
-  return check_users(save, value, sizeof(excl_user_buffer), "excl");
-}
-
-
-static void update_incl_users(MYSQL_THD thd,
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
-  size_t new_len= strlen(new_users) + 1;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-
-  if (new_len > sizeof(incl_user_buffer))
-    new_len= sizeof(incl_user_buffer);
-
-  memcpy(incl_user_buffer, new_users, new_len - 1);
-  incl_user_buffer[new_len - 1]= 0;
-
-  incl_users= incl_user_buffer;
-  user_coll_fill(&incl_user_coll, incl_users, &excl_user_coll, 1);
-  error_header();
-  fprintf(stderr, "server_audit_incl_users set to '%s'.\n", incl_users);
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
-}
-
-
-static void update_excl_users(MYSQL_THD thd  __attribute__((unused)),
-              struct st_mysql_sys_var *var  __attribute__((unused)),
-              void *var_ptr  __attribute__((unused)), const void *save)
-{
-  char *new_users= (*(char **) save) ? *(char **) save : empty_str;
-  size_t new_len= strlen(new_users) + 1;
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-
-  if (new_len > sizeof(excl_user_buffer))
-    new_len= sizeof(excl_user_buffer);
-
-  memcpy(excl_user_buffer, new_users, new_len - 1);
-  excl_user_buffer[new_len - 1]= 0;
-
-  excl_users= excl_user_buffer;
-  user_coll_fill(&excl_user_coll, excl_users, &incl_user_coll, 0);
-  error_header();
-  fprintf(stderr, "server_audit_excl_users set to '%s'.\n", excl_users);
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
+  mysql_prlock_unlock(&lock_operations);
 }
 
 
@@ -2793,10 +2834,10 @@ static void update_output_type(MYSQL_THD thd,
     return;
 
   ADD_ATOMIC(internal_stop_logging, 1);
-  flogger_mutex_lock(&lock_operations);
+  mysql_prlock_wrlock(&lock_operations);
   if (logging)
   {
-    log_current_query(thd);
+    log_config(thd, "output_type", output_type_names[new_output_type]);
     stop_logging();
   }
 
@@ -2806,8 +2847,8 @@ static void update_output_type(MYSQL_THD thd,
           output_type_names[output_type]);
 
   if (logging)
-    start_logging();
-  flogger_mutex_unlock(&lock_operations);
+    start_logging(thd);
+  mysql_prlock_unlock(&lock_operations);
   ADD_ATOMIC(internal_stop_logging, -1);
 }
 
@@ -2820,7 +2861,7 @@ static void update_syslog_facility(MYSQL_THD thd  __attribute__((unused)),
   if (syslog_facility == new_facility)
     return;
 
-  mark_always_logged(thd);
+  log_config(thd, "syslog_facility", syslog_facility_names[new_facility]);
   error_header();
   fprintf(stderr, "SysLog facility was changed from '%s' to '%s'.\n",
           syslog_facility_names[syslog_facility],
@@ -2837,9 +2878,7 @@ static void update_syslog_priority(MYSQL_THD thd  __attribute__((unused)),
   if (syslog_priority == new_priority)
     return;
 
-  flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
-  flogger_mutex_unlock(&lock_operations);
+  log_config(thd, "syslog_priority", syslog_priority_names[new_priority]);
   error_header();
   fprintf(stderr, "SysLog priority was changed from '%s' to '%s'.\n",
           syslog_priority_names[syslog_priority],
@@ -2857,25 +2896,33 @@ static void update_logging(MYSQL_THD thd,
     return;
 
   ADD_ATOMIC(internal_stop_logging, 1);
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
+  mysql_prlock_wrlock(&lock_operations);
+  log_config(thd, "logging", "OFF");
   if ((logging= new_logging))
   {
-    start_logging();
+    if (load_filters())
+    {
+      error_header();
+      fprintf(stderr, "Filters aren't loaded, logging can't be enabled!.\n");
+
+      logging= 0;
+    }
+    else
+      start_logging(thd);
+
     if (!logging)
     {
-      CLIENT_ERROR(1, "Logging was disabled.", MYF(ME_WARNING));
+      CLIENT_ERROR(1, "%.*s SERVER_AUDIT cannot enable Logging.",
+                   MYF(ME_FATAL), err_len, err_msg);
     }
-    mark_always_logged(thd);
+    log_config(thd, "logging", "ON");
   }
   else
   {
-    log_current_query(thd);
     stop_logging();
   }
 
-  if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
+  mysql_prlock_unlock(&lock_operations);
   ADD_ATOMIC(internal_stop_logging, -1);
 }
 
@@ -2885,19 +2932,20 @@ static void update_mode(MYSQL_THD thd  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
 {
   unsigned int new_mode= *(unsigned int *) save;
+
   if (mode_readonly || new_mode == mode)
     return;
 
-  ADD_ATOMIC(internal_stop_logging, 1);
   if (!maria_55_started || !debug_server_started)
-    flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
+    mysql_prlock_wrlock(&lock_operations);
+
+  log_config(thd, "mode", new_mode ? "1" : "0");
+
   error_header();
   fprintf(stderr, "Logging mode was changed from %d to %d.\n", mode, new_mode);
   mode= new_mode;
   if (!maria_55_started || !debug_server_started)
-    flogger_mutex_unlock(&lock_operations);
-  ADD_ATOMIC(internal_stop_logging, -1);
+    mysql_prlock_unlock(&lock_operations);
 }
 
 
@@ -2909,16 +2957,56 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
   strncpy(syslog_ident_buffer, new_ident, sizeof(syslog_ident_buffer)-1);
   syslog_ident_buffer[sizeof(syslog_ident_buffer)-1]= 0;
   syslog_ident= syslog_ident_buffer;
+  ADD_ATOMIC(internal_stop_logging, 1);
+  log_config(thd, "syslog_ident", syslog_ident);
   error_header();
   fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);
-  flogger_mutex_lock(&lock_operations);
-  mark_always_logged(thd);
+  mysql_prlock_wrlock(&lock_operations);
   if (logging && output_type == OUTPUT_SYSLOG)
   {
     stop_logging();
-    start_logging();
+    start_logging(thd);
   }
-  flogger_mutex_unlock(&lock_operations);
+  mysql_prlock_unlock(&lock_operations);
+  ADD_ATOMIC(internal_stop_logging, -1);
+}
+
+
+static int show_filter(MYSQL_THD thd, struct st_mysql_show_var *var,
+                       char *buff,
+                       struct system_status_var *sv  __attribute__((unused)),
+                       enum enum_var_type scope)
+{
+  struct connection_info *cn= get_loc_info(thd);
+  struct filter_def *f;
+
+  var->type= SHOW_CHAR;
+
+  if (scope == SHOW_OPT_GLOBAL)
+  {
+    strcpy(buff, "N/A");
+    var->value= buff;
+    return 1;
+  }
+
+  if (!cn)
+    goto err;
+
+  cn->thd= thd;
+  setc(thd_user_name(thd), &cn->user, &cn->user_len);
+  setc(thd_client_host(thd), &cn->host, &cn->host_len);
+  setc(thd_client_ip(thd), &cn->ip, &cn->ip_len);
+
+  f= find_user_filter(cn);
+  if (!f)
+    goto err;
+  var->value= f->name;
+  return 0;
+
+err:
+  strcpy(buff, "no filter");
+  var->value= buff;
+  return 0;
 }
 
 
@@ -2958,39 +3046,7 @@ void __attribute__ ((constructor)) audit_plugin_so_init(void)
   else
   {
     /* Started MySQL. */
-    if (serv_ver[0] == '5' && serv_ver[2] == '5')
-    {
-      int sc= serv_ver[4] - '0';
-      if (serv_ver[5] >= '0' && serv_ver[5] <= '9')
-        sc= sc * 10 + serv_ver[5] - '0';
-      if (sc <= 10)
-      {
-        mysql_descriptor.interface_version= 0x0200;
-        mysql_descriptor.event_notify= (void *) auditing_v8;
-      }
-      else if (sc < 14)
-      {
-        mysql_descriptor.interface_version= 0x0200;
-        mysql_descriptor.event_notify= (void *) auditing_v13;
-      }
-    }
-    else if (serv_ver[0] == '5' && serv_ver[2] == '6')
-    {
-      int sc= serv_ver[4] - '0';
-      if (serv_ver[5] >= '0' && serv_ver[5] <= '9')
-        sc= sc * 10 + serv_ver[5] - '0';
-      if (sc >= 24)
-        use_event_data_for_disconnect= 1;
-    }
-    else if ((serv_ver[0] == '5' && serv_ver[2] == '7') ||
-             (serv_ver[0] == '8' && serv_ver[2] == '0'))
-    {
-      mysql_57_started= 1;
-      _mysql_plugin_declarations_[0].info= mysql_v4_descriptor;
-      use_event_data_for_disconnect= 1;
-    }
-    MYSQL_SYSVAR_NAME(loc_info).flags= PLUGIN_VAR_STR | PLUGIN_VAR_THDLOCAL |
-      PLUGIN_VAR_READONLY | PLUGIN_VAR_MEMALLOC;
+    goto exit;
   }
 
   memset(locinfo_ini_value, 'O', sizeof(locinfo_ini_value)-1);
