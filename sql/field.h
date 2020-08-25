@@ -3813,7 +3813,7 @@ public:
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  decimal_digits_t decimals() const override final { return (decimal_digits_t) dec; }
+  decimal_digits_t decimals() const override final { return dec; }
   enum ha_base_keytype key_type() const override final { return HA_KEYTYPE_BINARY; }
   void make_send_field(Send_field *field) override final;
   bool send_binary(Protocol *protocol) override final;
@@ -5595,7 +5595,8 @@ public:
   LEX_CSTRING table_name, org_table_name;
   LEX_CSTRING col_name, org_col_name;
   ulong length;
-  uint flags, decimals;
+  uint flags;
+  decimal_digits_t decimals;
   Send_field(Field *field)
   {
     field->make_send_field(this);

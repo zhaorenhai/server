@@ -3242,10 +3242,11 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
 ** Field_new_decimal
 ****************************************************************************/
 
-static uint get_decimal_precision(uint len, uint8 dec, bool unsigned_val)
+static decimal_digits_t get_decimal_precision(uint len, decimal_digits_t dec,
+                                              bool unsigned_val)
 {
   uint precision= my_decimal_length_to_precision(len, dec, unsigned_val);
-  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
+  return (decimal_digits_t) MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
 Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
@@ -10230,7 +10231,8 @@ void Column_definition::create_length_to_internal_length_bit()
 void Column_definition::create_length_to_internal_length_newdecimal()
 {
   DBUG_ASSERT(length < UINT_MAX32);
-  uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
+  decimal_digit_t prec= get_decimal_precision((uint)length, decimals,
+                                              flags & UNSIGNED_FLAG);
   pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 
