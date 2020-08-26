@@ -2394,7 +2394,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
                                  my_isspace(charset_info, pos[2]))))
       {
         // Add trailing single line comments to this statement
-        uint length= strlen(pos);
+        size_t length= strlen(pos);
         buffer.append(pos, length);
         pos+= length;
       }
@@ -5189,7 +5189,7 @@ static const char *construct_prompt()
           else
           {
             static char hostname[FN_REFLEN];
-            static uint hostname_length;
+            static size_t hostname_length;
             if (hostname_length)
               processed_prompt.append(hostname, hostname_length);
             else if (gethostname(hostname, sizeof(hostname)) == 0)
