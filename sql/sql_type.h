@@ -351,7 +351,7 @@ public:
   {
     return m_ptr ? m_ptr->to_string(to, prec, dec, filler) : NULL;
   }
-  int to_binary(uchar *bin, int prec, int scale) const
+  int to_binary(uchar *bin, int prec, decimal_digits_t scale) const
   {
     return (m_ptr ? m_ptr : &decimal_zero)->to_binary(bin, prec, scale);
   }
@@ -374,16 +374,17 @@ class Dec_ptr_and_buffer: public Dec_ptr
 protected:
   my_decimal m_buffer;
 public:
-  int round_to(my_decimal *to, uint scale, decimal_round_mode mode)
+  /* scale is int as it can be negative here */
+  int round_to(my_decimal *to, int scale, decimal_round_mode mode)
   {
     DBUG_ASSERT(m_ptr);
     return m_ptr->round_to(to, scale, mode);
   }
-  int round_self(uint scale, decimal_round_mode mode)
+  int round_self(decimal_digits_t scale, decimal_round_mode mode)
   {
     return round_to(&m_buffer, scale, mode);
   }
-  String *to_string_round(String *to, uint dec)
+  String *to_string_round(String *to, decimal_digits_t dec)
   {
     /*
       decimal_round() allows from==to
@@ -2917,8 +2918,6 @@ char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
   return tmp > UINT_MAX32 ? (uint32) UINT_MAX32 : static_cast<uint32>(tmp);
 }
 
-typedef uint16 decimal_digits_t;
-
 class Type_numeric_attributes
 {
 public:
@@ -3330,7 +3329,7 @@ class Information_schema_numeric_attributes
     ATTR_PRECISION_AND_SCALE= (ATTR_PRECISION|ATTR_SCALE)
   };
   uint m_precision;
-  uint m_scale;
+  decimal_digits_t m_scale;
   enum_attr m_available_attributes;
 public:
   Information_schema_numeric_attributes()
@@ -3341,7 +3340,7 @@ public:
    :m_precision(precision), m_scale(0),
     m_available_attributes(ATTR_PRECISION)
   { }
-  Information_schema_numeric_attributes(uint precision, uint scale)
+  Information_schema_numeric_attributes(uint precision, decimal_digits_t scale)
    :m_precision(precision), m_scale(scale),
     m_available_attributes(ATTR_PRECISION_AND_SCALE)
   { }
@@ -3352,10 +3351,10 @@ public:
     DBUG_ASSERT(has_precision());
     return (uint) m_precision;
   }
-  uint scale() const
+  decimal_digits_t scale() const
   {
     DBUG_ASSERT(has_scale());
-    return (uint) m_scale;
+    return m_scale;
   }
 };
 

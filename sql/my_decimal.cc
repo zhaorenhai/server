@@ -198,7 +198,8 @@ str_set_decimal(uint mask, const my_decimal *val,
     E_DEC_OVERFLOW
 */
 
-int my_decimal::to_binary(uchar *bin, int prec, int scale, uint mask) const
+int my_decimal::to_binary(uchar *bin, int prec, decimal_digits_t scale,
+                          uint mask) const
 {
   int err1= E_DEC_OK, err2;
   my_decimal rounded;
