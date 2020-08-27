@@ -3517,7 +3517,7 @@ public:
   {
     if (execute())
       return true;
-    return null_value= sp_result_field->val_native(to);
+    return (null_value= sp_result_field->val_native(to));
   }
 
   void update_null_value()
