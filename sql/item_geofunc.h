@@ -306,7 +306,7 @@ public:
     collation.set(&my_charset_bin);
     decimals=0;
     max_length= (uint32) UINT_MAX32;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -356,7 +356,7 @@ public:
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   };
   Item *get_copy(THD *thd) override
@@ -758,7 +758,7 @@ public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   enum Functype functype() const override { return spatial_rel; }
   enum Functype rev_functype() const override
@@ -951,7 +951,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isempty") };
     return name;
   }
-  bool fix_length_and_dec() override { flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { set_maybe_null(); return FALSE; }
   bool need_parentheses_in_default() override { return false; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isempty>(thd, this); }
@@ -1020,7 +1020,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_dimension") };
     return name;
   }
-  bool fix_length_and_dec() override { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { max_length= 10; set_maybe_null(); return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
@@ -1040,7 +1040,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1062,7 +1062,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1081,7 +1081,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numgeometries") };
     return name;
   }
-  bool fix_length_and_dec() override { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { max_length= 10; set_maybe_null(); return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
@@ -1098,7 +1098,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numinteriorrings") };
     return name;
   }
-  bool fix_length_and_dec() override { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { max_length= 10; set_maybe_null(); return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
@@ -1115,7 +1115,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_numpoints") };
     return name;
   }
-  bool fix_length_and_dec() override { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { max_length= 10; set_maybe_null(); return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
@@ -1135,7 +1135,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1159,7 +1159,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1178,7 +1178,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("srid") };
     return name;
   }
-  bool fix_length_and_dec() override { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
+  bool fix_length_and_dec() override { max_length= 10; set_maybe_null(); return FALSE; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_srid>(thd, this); }
 };

@@ -109,7 +109,7 @@ public:
   {
     decimals=0; 
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   enum_monotonicity_info get_monotonicity_info() const override;
@@ -141,7 +141,7 @@ public:
   {
     decimals=0; 
     fix_char_length(12);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   enum_monotonicity_info get_monotonicity_info() const override;
@@ -172,7 +172,7 @@ public:
   {
     decimals=0; 
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -201,7 +201,7 @@ public:
   {
     decimals= 0;
     fix_char_length(2);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -255,7 +255,7 @@ public:
   {
     decimals= 0;
     fix_char_length(3);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -283,7 +283,7 @@ public:
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -311,7 +311,7 @@ public:
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -339,7 +339,7 @@ public:
   {
      decimals=0;
      max_length=1*MY_CHARSET_BIN_MB_MAXLEN;
-     flags|= ITEM_FLAG_MAYBE_NULL;
+     set_maybe_null();
      return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -367,7 +367,7 @@ public:
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -401,7 +401,7 @@ public:
   {
     decimals=0;
     max_length=2*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -438,7 +438,7 @@ public:
   {
     decimals=0;
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -468,7 +468,7 @@ public:
   {
     decimals=0;
     max_length=4*MY_CHARSET_BIN_MB_MAXLEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -503,7 +503,7 @@ public:
   {
     decimals= 0;
     fix_char_length(1);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_partition_func_processor(void *int_arg) override {return FALSE;}
@@ -554,7 +554,7 @@ public:
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
     decimals= dec;
     max_length=17 + (decimals ? decimals + 1 : 0);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     if (decimals)
       set_handler(&type_handler_newdecimal);
     else
@@ -1039,7 +1039,7 @@ class Item_func_convert_tz :public Item_datetimefunc
   bool fix_length_and_dec() override
   {
     fix_attributes_datetime(args[0]->datetime_precision(current_thd));
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
@@ -1059,7 +1059,7 @@ public:
   bool fix_length_and_dec() override
   {
     fix_attributes_time(args[0]->decimals);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1383,7 +1383,7 @@ public:
     uint dec0= args[0]->datetime_precision(thd);
     uint dec1= Interval_DDhhmmssff::fsp(thd, args[1]);
     fix_attributes_datetime(MY_MAX(dec0, dec1));
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return false;
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
@@ -1452,7 +1452,7 @@ public:
     uint dec= MY_MAX(args[0]->time_precision(thd),
                      args[1]->time_precision(thd));
     fix_attributes_time(dec);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
@@ -1474,7 +1474,7 @@ public:
   bool fix_length_and_dec() override
   {
     fix_attributes_time(args[2]->decimals);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1501,7 +1501,7 @@ public:
   bool fix_length_and_dec() override
   {
     decimals=0;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     fix_char_length(6);
     return FALSE;
   }
@@ -1536,7 +1536,7 @@ public:
   bool fix_length_and_dec() override
   {
     decimals=0;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   void print(String *str, enum_query_type query_type) override;
@@ -1565,7 +1565,7 @@ public:
   }
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     decimals=0;
     fix_length_and_charset(17, default_charset());
     return FALSE;

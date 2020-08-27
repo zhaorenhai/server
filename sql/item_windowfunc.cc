@@ -369,7 +369,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
 bool Item_sum_hybrid_simple::fix_length_and_dec()
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }

@@ -1561,7 +1561,7 @@ bool Item_func_div::fix_length_and_dec()
   DBUG_ENTER("Item_func_div::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   prec_increment= current_thd->variables.div_precincrement;
-  flags|= ITEM_FLAG_MAYBE_NULL; // division by zero
+  set_maybe_null(); // division by zero
 
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_div;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
@@ -1639,7 +1639,7 @@ bool Item_func_int_div::fix_length_and_dec()
   uint32 prec= args[0]->decimal_int_part();
   set_if_smaller(prec, MY_INT64_NUM_DECIMAL_DIGITS);
   fix_char_length(prec);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
   return false;
 }
@@ -1719,7 +1719,7 @@ bool Item_func_mod::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_mod::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
-  flags|= ITEM_FLAG_MAYBE_NULL; // division by zero
+  set_maybe_null(); // division by zero
   const Type_aggregator *aggregator= &type_handler_data->m_type_aggregator_for_mod;
   DBUG_EXECUTE_IF("num_op", aggregator= &type_handler_data->m_type_aggregator_non_commutative_test;);
   DBUG_ASSERT(!aggregator->is_commutative());
@@ -2528,7 +2528,7 @@ void Item_func_round::fix_arg_datetime()
     return NULL.
   */
   if (!truncate)
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   fix_arg_temporal(&type_handler_datetime2, MAX_DATETIME_WIDTH);
 }
 
@@ -3209,7 +3209,7 @@ longlong Item_func_field::val_int()
 
 bool Item_func_field::fix_length_and_dec()
 {
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   max_length=3;
   cmp_type= args[0]->result_type();
   for (uint i=1; i < arg_count ; i++)
@@ -3453,7 +3453,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   args=arguments;
 
   /* Fix all arguments */
-  func->flags&= (Item::item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  func->set_not_null();
   func->used_tables_and_const_cache_init();
 
   if ((f_args.arg_count=arg_count))
@@ -4761,7 +4761,8 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
 bool
 Item_func_set_user_var::fix_length_and_dec()
 {
-  flags|= (args[0]->flags & ITEM_FLAG_MAYBE_NULL);
+  if (args[0]->maybe_null())
+    set_maybe_null();
   decimals=args[0]->decimals;
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
   {
@@ -5617,7 +5618,7 @@ bool Item_func_get_user_var::fix_length_and_dec()
 {
   THD *thd=current_thd;
   int error;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   decimals=NOT_FIXED_DEC;
   max_length=MAX_BLOB_WIDTH;
 
@@ -5827,7 +5828,7 @@ void Item_func_get_system_var::update_null_value()
 bool Item_func_get_system_var::fix_length_and_dec()
 {
   char *cptr;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   max_length= 0;
 
   if (var->check_type(var_type))
@@ -6190,7 +6191,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
 
   status_var_increment(thd->status_var.feature_fulltext);
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   join_key=0;
 
   /*
@@ -6526,7 +6527,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name, const Sp_handler *sph):
   Item_func(thd), Item_sp(thd, context_arg, name), m_handler(sph)
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 }
 
 
@@ -6535,7 +6536,7 @@ Item_func_sp::Item_func_sp(THD *thd, Name_resolution_context *context_arg,
                            List<Item> &list):
   Item_func(thd, list), Item_sp(thd, context_arg, name_arg), m_handler(sph)
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 }
 
 
@@ -6591,7 +6592,7 @@ bool Item_func_sp::fix_length_and_dec()
   Type_std_attributes::set(sp_result_field->type_std_attributes());
   // There is a bug in the line below. See MDEV-11292 for details.
   collation.derivation= DERIVATION_COERCIBLE;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 
   DBUG_RETURN(FALSE);
 }

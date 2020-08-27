@@ -38,7 +38,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
   null_value= 0;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
 
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)

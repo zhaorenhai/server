@@ -1164,6 +1164,19 @@ public:
     return type_handler()->max_display_length(this);
   }
   const TYPELIB *get_typelib() const override { return NULL; }
+  inline void set_maybe_null()
+  {
+    flags|= ITEM_FLAG_MAYBE_NULL;
+  }
+  inline void set_not_null()
+  {
+    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  }
+  inline void copy_maybe_null(const Item *item)
+  {
+    flags= (item_flags_t) ((flags & ~ITEM_FLAG_MAYBE_NULL) |
+                           (item->flags & ITEM_FLAG_MAYBE_NULL));
+  }
   inline void set_maybe_null(bool maybe_null_arg)
   {
     flags= ((item_flags_t)
@@ -3645,7 +3658,7 @@ public:
   Item_null(THD *thd, const char *name_par=0, CHARSET_INFO *cs= &my_charset_bin):
     Item_basic_constant(thd)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     null_value= TRUE;
     max_length= 0;
     name.str= name_par ? name_par : "NULL";
@@ -6072,7 +6085,7 @@ protected:
     DBUG_ASSERT(org->fixed());
     item= org;
     null_value= item->maybe_null();
-    copy_flags(item, ITEM_FLAG_MAYBE_NULL);
+    copy_maybe_null(item);
     Type_std_attributes::set(item);
     name= item->name;
     set_handler(item->type_handler());
@@ -6678,7 +6691,7 @@ public:
     value_cached(0),
     used_table_map(0)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     null_value= 1;
   }
 protected:
@@ -6689,7 +6702,7 @@ protected:
     value_cached(0),
     used_table_map(0)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     null_value= 1;
   }
 
@@ -7229,7 +7242,7 @@ public:
     enum_set_typelib(0)
   {
     DBUG_ASSERT(item->fixed());
-    copy_flags(item, ITEM_FLAG_MAYBE_NULL);
+    copy_maybe_null(item);
   }
   Item_type_holder(THD *thd,
                    Item *item,

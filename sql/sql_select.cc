@@ -18493,7 +18493,7 @@ bool Create_tmp_table::add_fields(THD *thd,
               new_field->maybe_null() is still false, it will be
               changed below. But we have to setup Item_field correctly
             */
-            arg->flags|= ITEM_FLAG_MAYBE_NULL;
+            arg->set_maybe_null();
           }
           if (current_counter == distinct)
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
@@ -18883,7 +18883,7 @@ bool Create_tmp_table::finalize(THD *thd,
             that the key,field and item definition match.
           */
           maybe_null= 0;
-          (*cur_group->item)->flags&= (Item::item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+          (*cur_group->item)->set_not_null();
         }
 
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
@@ -26122,7 +26122,7 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
             Item_null_result *null_item= new (thd->mem_root) Item_null_result(thd);
             if (!null_item)
               return 1;
-	    item->flags|= ITEM_FLAG_MAYBE_NULL;		// Value will be null sometimes
+	    item->set_maybe_null();		// Value will be null sometimes
             null_item->result_field= item->get_tmp_table_field();
             item= null_item;
 	    break;

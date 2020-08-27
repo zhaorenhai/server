@@ -32,7 +32,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return false;
   }
   LEX_CSTRING func_name_cstring() const override

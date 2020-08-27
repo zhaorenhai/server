@@ -331,7 +331,7 @@ public:
   {
     collation.set(system_charset_info);
     max_length= MAX_BLOB_WIDTH;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -596,7 +596,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_substr::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -695,7 +695,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_trim::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   Item *get_copy(THD *thd) override
@@ -747,7 +747,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_ltrim::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   Item *get_copy(THD *thd) override
@@ -795,7 +795,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_rtrim::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   Item *get_copy(THD *thd) override
@@ -858,7 +858,7 @@ public:
   String *val_str(String *) override;
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length = args[0]->max_length + 9;
     return FALSE;
@@ -883,7 +883,7 @@ public:
   String *val_str(String *) override;
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length= args[0]->max_length;
     if (max_length >= 9U)
@@ -927,7 +927,7 @@ public:
   String *val_str(String *) override;
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     max_length = 13;
     return FALSE;
   }
@@ -1019,7 +1019,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1054,7 +1054,7 @@ public:
   {
     max_length= 512 * system_charset_info->mbmaxlen;
     null_value= false;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1383,7 +1383,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_rpad::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1426,7 +1426,7 @@ public:
   bool fix_length_and_dec() override
   {
     bool res= Item_func_lpad::fix_length_and_dec();
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return res;
   }
   LEX_CSTRING func_name_cstring() const override
@@ -1454,7 +1454,7 @@ public:
   {
     collation.set(default_charset());
     fix_char_length(64);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -1508,7 +1508,7 @@ public:
   Item_func_unhex(THD *thd, Item *a): Item_str_func(thd, a)
   {
     /* there can be bad hex strings */
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1539,7 +1539,7 @@ public:
   Item_func_like_range(THD *thd, Item *a, Item *b, bool is_min_arg):
     Item_str_func(thd, a, b), is_min(is_min_arg)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   String *val_str(String *) override;
   bool fix_length_and_dec() override
@@ -1628,7 +1628,7 @@ public:
   bool fix_length_and_dec() override
   {
     collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     max_length=MAX_BLOB_WIDTH;
     return FALSE;
   }
@@ -1810,7 +1810,7 @@ public:
   {
      collation.set(system_charset_info);
      max_length= 64 * collation.collation->mbmaxlen; // should be enough
-     flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+     set_not_null();
      return FALSE;
   };
   table_map not_null_tables() const override { return 0; }
@@ -1925,7 +1925,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length=10;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE; }
   longlong val_int() override;
   Item *get_copy(THD *thd) override
@@ -1967,7 +1967,7 @@ public:
    :Item_str_binary_checksum_func(thd, a) {}
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     max_length= MAX_BLOB_WIDTH;
     return FALSE;
   }
@@ -2068,7 +2068,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= MAX_BLOB_WIDTH;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     decimals= 0;
     return FALSE;
   }
@@ -2087,7 +2087,7 @@ public:
   {}
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     max_length= MAX_BLOB_WIDTH;
     return FALSE;
   }
@@ -2134,7 +2134,7 @@ public:
     {collation.set(DYNCOL_UTF);}
   bool fix_length_and_dec() override
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     max_length= MAX_BLOB_WIDTH;
     return FALSE;
   }
@@ -2191,7 +2191,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= WSREP_GTID_STR_LEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override
@@ -2212,7 +2212,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= WSREP_GTID_STR_LEN;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) override

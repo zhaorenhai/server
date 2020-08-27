@@ -1222,7 +1222,7 @@ public:
         IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
         IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
     */
-    copy_flags(args[1], ITEM_FLAG_MAYBE_NULL);
+    copy_maybe_null(args[1]);
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
@@ -2710,7 +2710,7 @@ public:
   {
     decimals=0;
     max_length=1;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   bool count_sargable_conds(void *arg) override;
@@ -3655,7 +3655,7 @@ public:
   Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_bool_attr(thd, name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -3674,7 +3674,7 @@ public:
   Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_bool_attr(thd, name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   LEX_CSTRING func_name_cstring() const override
   {

@@ -891,7 +891,7 @@ bool Aggregator_distinct::setup(THD *thd)
     */
 
     item_sum->null_value= 1;
-    item_sum->flags|= ITEM_FLAG_MAYBE_NULL;
+    item_sum->set_maybe_null();
     item_sum->quick_group= 0;
 
     DBUG_ASSERT(item_sum->get_arg(0)->fixed());
@@ -1239,7 +1239,7 @@ bool Item_sum_min_max::fix_length_and_dec()
   DBUG_ASSERT(args[0]->field_type() == args[0]->real_item()->field_type());
   DBUG_ASSERT(args[0]->result_type() == args[0]->real_item()->result_type());
   /* MIN/MAX can return NULL for empty set indepedent of the used column */
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }
@@ -1311,7 +1311,7 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name_arg, sp_head *sp, List<Item> &list)
   :Item_sum(thd, list), Item_sp(thd, context_arg, name_arg)
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   quick_group= 0;
   m_sp= sp;
 }
@@ -1320,7 +1320,7 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
                            sp_name *name_arg, sp_head *sp)
   :Item_sum(thd), Item_sp(thd, context_arg, name_arg)
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   quick_group= 0;
   m_sp= sp;
 }
@@ -1328,7 +1328,8 @@ Item_sum_sp::Item_sum_sp(THD *thd, Name_resolution_context *context_arg,
 Item_sum_sp::Item_sum_sp(THD *thd, Item_sum_sp *item):
              Item_sum(thd, item), Item_sp(thd, item)
 {
-  flags|= (item->flags & ITEM_FLAG_MAYBE_NULL);
+  if (item->maybe_null())
+    set_maybe_null();
   quick_group= item->quick_group;
 }
 
@@ -1553,7 +1554,7 @@ void Item_sum_sum::fix_length_and_dec_decimal()
 bool Item_sum_sum::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_sum::fix_length_and_dec");
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value=1;
   if (args[0]->cast_to_int_type_handler()->
       Item_sum_sum_fix_length_and_dec(this))
@@ -1976,7 +1977,7 @@ bool Item_sum_avg::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_avg::fix_length_and_dec");
   prec_increment= current_thd->variables.div_precincrement;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value=1;
   if (args[0]->cast_to_int_type_handler()->
       Item_sum_avg_fix_length_and_dec(this))
@@ -2207,7 +2208,7 @@ void Item_sum_variance::fix_length_and_dec_decimal()
 bool Item_sum_variance::fix_length_and_dec()
 {
   DBUG_ENTER("Item_sum_variance::fix_length_and_dec");
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value= 1;
   prec_increment= current_thd->variables.div_precincrement;
 
@@ -4219,7 +4220,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   if (init_sum_func_check(thd))
     return TRUE;
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 
   /*
     Fix fields for select list and ORDER clause

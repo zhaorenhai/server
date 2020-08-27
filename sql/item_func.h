@@ -202,7 +202,7 @@ public:
     if (max_result_length >= MAX_BLOB_WIDTH)
     {
       max_length= MAX_BLOB_WIDTH;
-      flags|= ITEM_FLAG_MAYBE_NULL;
+      set_maybe_null();
     }
     else
       max_length= (uint32) max_result_length;
@@ -1247,7 +1247,7 @@ public:
   Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_longlong_func(thd), Cursor_ref(name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -1449,7 +1449,7 @@ public:
   void print(String *str, enum_query_type query_type);
   void fix_length_and_dec_generic()
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
 };
 
@@ -1756,7 +1756,7 @@ class Item_dec_func :public Item_real_func
   {
     decimals= NOT_FIXED_DEC;
     max_length= float_length(decimals);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
 };
@@ -1986,7 +1986,7 @@ public:
     fix_attributes_datetime(0);
     set_handler(&type_handler_datetime2);
     // Thinks like CEILING(TIMESTAMP'0000-01-01 23:59:59.9') returns NULL
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   bool fix_length_and_dec() override;
   String *str_op(String *str) override { DBUG_ASSERT(0); return 0; }
@@ -2403,7 +2403,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length=10;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   bool eval_not_null_tables(void *) override
@@ -2719,7 +2719,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length=1;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   void print(String *str, enum_query_type query_type) override;
@@ -3111,7 +3111,7 @@ class Item_func_get_lock final :public Item_func_lock
   bool fix_length_and_dec() override
   {
     max_length= 1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) final
@@ -3151,7 +3151,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length= 1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) final
@@ -3188,7 +3188,7 @@ public:
   bool fix_length_and_dec() override
   {
     max_length=21;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -3660,7 +3660,7 @@ public:
   {
     decimals=0;
     max_length=1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -3687,7 +3687,7 @@ public:
   bool fix_length_and_dec() override
   {
     decimals=0; max_length=10;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -3748,7 +3748,7 @@ public:
   bool fix_length_and_dec() override
   {
     decimals= 0;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -3922,7 +3922,7 @@ public:
   bool fix_length_and_dec() override
   {
     decimals= 0;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg) override
@@ -3977,7 +3977,7 @@ public:
   }
   bool fix_length_and_dec() override
   {
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    set_not_null();
     null_value= false;
     max_length= 11;
     return FALSE;
@@ -4047,7 +4047,7 @@ public:
   void update_used_tables() override
   {
     Item_func::update_used_tables();
-    copy_flags(last_value, ITEM_FLAG_MAYBE_NULL);
+    copy_maybe_null(last_value);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_last_value>(thd, this); }
@@ -4074,7 +4074,7 @@ public:
   {
     unsigned_flag= 0;
     max_length= MAX_BIGINT_WIDTH;
-    flags|= ITEM_FLAG_MAYBE_NULL;             /* In case of errors */
+    set_maybe_null();             /* In case of errors */
     return FALSE;
   }
   /*

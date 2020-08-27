@@ -1715,7 +1715,7 @@ Item_splocal::Item_splocal(THD *thd,
   m_var_idx(sp_var_idx),
   m_type(handler == &type_handler_row ? ROW_ITEM : CONST_ITEM)
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 }
 
 
@@ -2073,7 +2073,7 @@ Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   StringBuffer<128> name_buffer;
   String *name_str;
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   if (name_item->basic_const_item() &&
       (name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
     set_name(thd, name_str);
@@ -3940,7 +3940,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     before mysql_stmt_execute(), so we assuming that it can be NULL until
     value is set.
   */
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 }
 
 
@@ -3972,7 +3972,7 @@ void Item_param::sync_clones()
   {
     Item_param *c= *c_ptr;
     /* Scalar-type members: */
-    c->copy_flags(this, ITEM_FLAG_MAYBE_NULL);
+    c->copy_maybe_null(this);
     c->null_value= null_value;
     c->Type_std_attributes::operator=(*this);
     c->Type_handler_hybrid_field_type::operator=(*this);
@@ -4024,7 +4024,7 @@ void Item_param::set_int(longlong i, uint32 max_length_arg)
   collation= DTCollation_numeric();
   max_length= max_length_arg;
   decimals= 0;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   DBUG_VOID_RETURN;
 }
@@ -4038,7 +4038,7 @@ void Item_param::set_double(double d)
   collation= DTCollation_numeric();
   max_length= DBL_DIG + 8;
   decimals= NOT_FIXED_DEC;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   DBUG_VOID_RETURN;
 }
@@ -4070,7 +4070,7 @@ void Item_param::set_decimal(const char *str, ulong length)
   max_length=
     my_decimal_precision_to_length_no_truncation(value.m_decimal.precision(),
                                                  decimals, unsigned_flag);
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   DBUG_VOID_RETURN;
 }
@@ -4087,7 +4087,7 @@ void Item_param::set_decimal(const my_decimal *dv, bool unsigned_arg)
   unsigned_flag= unsigned_arg;
   max_length= my_decimal_precision_to_length(value.m_decimal.intg + decimals,
                                              decimals, unsigned_flag);
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
 }
 
@@ -4098,7 +4098,7 @@ void Item_param::fix_temporal(uint32 max_length_arg, uint decimals_arg)
   collation= DTCollation_numeric();
   max_length= max_length_arg;
   decimals= decimals_arg;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
 }
 
@@ -4108,7 +4108,7 @@ void Item_param::set_time(const MYSQL_TIME *tm,
 {
   DBUG_ASSERT(value.type_handler()->cmp_type() == TIME_RESULT);
   value.time= *tm;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   fix_temporal(max_length_arg, decimals_arg);
 }
@@ -4143,7 +4143,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
                                  &str, time_type, NULL, NULL, NULL);
     set_zero_time(&value.time, time_type);
   }
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   fix_temporal(max_length_arg,
                tm->second_part > 0 ? TIME_SECOND_PART_DIGITS : 0);
@@ -4180,7 +4180,7 @@ bool Item_param::set_str(const char *str, ulong length,
   state= SHORT_DATA_VALUE;
   collation.set(tocs, DERIVATION_COERCIBLE);
   max_length= length;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   /* max_length and decimals are set after charset conversion */
   /* sic: str may be not null-terminated, don't add DBUG_PRINT here */
@@ -4215,7 +4215,7 @@ bool Item_param::set_longdata(const char *str, ulong length)
   if (value.m_string.append(str, length, &my_charset_bin))
     DBUG_RETURN(TRUE);
   state= LONG_DATA_VALUE;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
 
   DBUG_RETURN(FALSE);
@@ -4316,7 +4316,7 @@ void Item_param::reset()
   value.m_string.set_charset(&my_charset_bin);
   collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
   state= NO_VALUE;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value= 0;
   DBUG_VOID_RETURN;
 }
@@ -4775,7 +4775,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
   Type_std_attributes::set(src);
   set_handler(src->type_handler());
 
-  copy_flags(src, ITEM_FLAG_MAYBE_NULL);
+  copy_maybe_null(src);
   null_value= src->null_value;
   state= src->state;
 
@@ -8971,7 +8971,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
   if (Item_direct_ref::fix_fields(thd, reference))
     return TRUE;
   if (view->table && view->table->maybe_null)
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   set_null_ref_table();
   return FALSE;
 }

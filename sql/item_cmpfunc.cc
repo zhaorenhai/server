@@ -1142,7 +1142,7 @@ int Arg_comparator::compare_e_str_json()
 
 bool Item_func_truth::fix_length_and_dec()
 {
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value= 0;
   decimals= 0;
   max_length= 1;
@@ -1371,7 +1371,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   if (fix_left(thd))
     return TRUE;
   if (args[0]->maybe_null())
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
 
   if (args[1]->fix_fields_if_needed(thd, args + 1))
     return TRUE;
@@ -1777,7 +1777,7 @@ longlong Item_func_eq::val_int()
 bool Item_func_equal::fix_length_and_dec()
 {
   bool rc= Item_bool_rowready_func2::fix_length_and_dec();
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   null_value=0;
   return rc;
 }
@@ -1931,7 +1931,7 @@ bool Item_func_interval::fix_length_and_dec()
       }
     }
   }
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  set_not_null();
   max_length= 2;
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
@@ -2723,7 +2723,7 @@ Item_func_nullif::fix_length_and_dec()
   decimals= args[2]->decimals;
   unsigned_flag= args[2]->unsigned_flag;
   fix_char_length(args[2]->max_char_length());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   m_arg0= args[0];
   if (setup_args_and_comparator(thd, &cmp))
     return TRUE;
@@ -3138,7 +3138,7 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 
   Item **pos= else_expr_addr();
   if (!pos || pos[0]->maybe_null())
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   return res;
 }
 
@@ -6073,14 +6073,15 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
   {
     if (compile(pattern_arg, true))
     {
-      owner->flags|= ITEM_FLAG_MAYBE_NULL; // Will always return NULL
+      owner->set_maybe_null(); // Will always return NULL
       return;
     }
     set_const(true);
-    owner->flags|= subject_arg->flags & ITEM_FLAG_MAYBE_NULL;
+    if (subject_arg->maybe_null())
+      owner->set_maybe_null();
   }
   else
-    owner->flags|= ITEM_FLAG_MAYBE_NULL;
+    owner->set_maybe_null();
 }
 
 
@@ -7039,7 +7040,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     not_null_tables_cache|= tmp_table_map;
     DBUG_ASSERT(!item->with_sum_func() && !item->with_subquery());
     if (item->maybe_null())
-      flags|= ITEM_FLAG_MAYBE_NULL;
+      set_maybe_null();
     if (!item->get_item_equal())
       item->set_item_equal(this);
     if (link_equal_fields && item->real_item()->type() == FIELD_ITEM)
