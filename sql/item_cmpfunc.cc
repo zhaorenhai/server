@@ -4948,7 +4948,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
   }
   if (fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 
@@ -7057,7 +7057,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     last_equal_field->next_equal_field= first_equal_field;
   if (fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 

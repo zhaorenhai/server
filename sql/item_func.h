@@ -2809,7 +2809,7 @@ public:
     DBUG_ASSERT(fixed() == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
     set_non_deterministic_if_needed();
-    flags|= ITEM_FLAG_FIXED;
+    set_fixed();
     return res;
   }
   void fix_num_length_and_dec();
@@ -3064,7 +3064,7 @@ public:
     { DBUG_ASSERT(fixed()); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed()); null_value= 1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
-  bool fix_length_and_dec() override { flags|= ITEM_FLAG_MAYBE_NULL; max_length=0; return FALSE; }
+  bool fix_length_and_dec() override { set_maybe_null(); max_length=0; return FALSE; }
 };
 
 #endif /* HAVE_DLOPEN */

@@ -68,7 +68,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
                             ITEM_FLAG_WITH_SUBQUERY |
                             ITEM_FLAG_WITH_PARAM));
   }
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 

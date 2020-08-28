@@ -1136,7 +1136,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   memcpy (orig_args, args, sizeof (Item *) * arg_count);
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 
@@ -1169,7 +1169,7 @@ Item_sum_min_max::fix_fields(THD *thd, Item **ref)
     DBUG_RETURN(TRUE);
 
   orig_args[0]= args[0];
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   DBUG_RETURN(FALSE);
 }
 
@@ -1371,7 +1371,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
 
   memcpy(orig_args, args, sizeof(Item *) * arg_count);
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 
@@ -4271,7 +4271,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 

@@ -2127,7 +2127,7 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
   max_length= value_item->max_length;
   decimals= value_item->decimals;
   unsigned_flag= value_item->unsigned_flag;
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 
@@ -3052,7 +3052,7 @@ void Item_field::set_field(Field *field_par)
   db_name= field_par->table->s->db;
   alias_name_used= field_par->table->alias_name_used;
 
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
     any_privileges= 0;
 }
@@ -5595,7 +5595,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                           select->nest_level);
             set_field(*from_field);
-            flags|= ITEM_FLAG_FIXED;
+            set_fixed();
             mark_as_dependent(thd, last_checked_context->select_lex,
                               context->select_lex, this,
                               ((ref_type == REF_ITEM ||
@@ -6011,7 +6011,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     }
   }
 #endif
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   if (field->vcol_info)
     fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
@@ -9680,7 +9680,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
     field= (row_version == OLD_ROW) ? triggers->old_field[field_idx] :
                                       triggers->new_field[field_idx];
     set_field(field);
-    flags|= ITEM_FLAG_FIXED;
+    set_fixed();
     return FALSE;
   }
 

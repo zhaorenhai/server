@@ -1164,6 +1164,14 @@ public:
     return type_handler()->max_display_length(this);
   }
   const TYPELIB *get_typelib() const override { return NULL; }
+  inline void set_fixed()
+  {
+    flags|= ITEM_FLAG_FIXED;
+  }
+  inline void set_not_fixed()
+  {
+    flags&= (item_flags_t) ~ITEM_FLAG_FIXED;
+  }
   inline void set_maybe_null()
   {
     flags|= ITEM_FLAG_MAYBE_NULL;
@@ -2728,7 +2736,7 @@ class Item_fixed_hybrid: public Item
 public:
   Item_fixed_hybrid(THD *thd): Item(thd)
   {
-    flags&= (item_flags_t) ~ITEM_FLAG_FIXED;
+    set_not_fixed();
   }
   Item_fixed_hybrid(THD *thd, Item_fixed_hybrid *item)
    :Item(thd, item)
@@ -2738,16 +2746,16 @@ public:
   bool fix_fields(THD *thd, Item **ref) override
   {
     DBUG_ASSERT(!fixed());
-    flags|= ITEM_FLAG_FIXED;
+    set_fixed();
     return false;
   }
   void cleanup() override
   {
     Item::cleanup();
-    flags&= (item_flags_t) ~ITEM_FLAG_FIXED;
+    set_not_fixed();
   }
-  void quick_fix_field() override { flags|= ITEM_FLAG_FIXED; }
-  void unfix_fields() override { flags&= (item_flags_t) ~ITEM_FLAG_FIXED; }
+  void quick_fix_field() override { set_fixed(); }
+  void unfix_fields() override { set_not_fixed(); }
 };
 
 
@@ -5938,7 +5946,7 @@ public:
     ref= &outer_ref;
     set_properties();
     /* reset flag set in set_properties() */
-    flags&= (item_flags_t) ~ITEM_FLAG_FIXED;
+    set_not_fixed();
   }
   Item_outer_ref(THD *thd, Name_resolution_context *context_arg, Item **item,
                  const LEX_CSTRING &table_name_arg, LEX_CSTRING &field_name_arg,

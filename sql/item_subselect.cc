@@ -342,7 +342,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     if (uncacheable & UNCACHEABLE_RAND)
       used_tables_cache|= RAND_TABLE_BIT;
   }
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
 
 end:
   done_first_fix_fields= FALSE;
@@ -3444,7 +3444,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   thd->where= save_where;
   DBUG_RETURN(FALSE);
 

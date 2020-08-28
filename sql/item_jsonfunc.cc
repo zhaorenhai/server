@@ -3804,7 +3804,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 

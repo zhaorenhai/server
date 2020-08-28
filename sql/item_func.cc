@@ -363,7 +363,7 @@ Item_func::fix_fields(THD *thd, Item **ref)
     return true;
   if (fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 
@@ -379,7 +379,7 @@ Item_func::quick_fix_field()
         (*arg)->quick_fix_field();
     }
   }
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
 }
 
 

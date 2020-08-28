@@ -130,7 +130,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   max_length= window_func()->max_length;
   set_maybe_null(window_func()->maybe_null());
 
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   set_phase_to_initial();
   return false;
 }
@@ -362,7 +362,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   for (uint i= 0; i < arg_count; i++)
     orig_args[i]= args[i];
 
-  flags|= ITEM_FLAG_FIXED;
+  set_fixed();
   return FALSE;
 }
 

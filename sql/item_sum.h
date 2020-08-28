@@ -1662,7 +1662,7 @@ public:
     if (init_sum_func_check(thd))
       return TRUE;
 
-    flags|= ITEM_FLAG_FIXED;
+    set_fixed();
     /*
       We set const_item_cache to false in constructors.
       It can be later changed to "true", in a Item_sum::make_const() call.
