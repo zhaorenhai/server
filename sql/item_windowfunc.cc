@@ -122,7 +122,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   const_item_cache= false;
 
-  flags= (flags & ~ITEM_FLAG_WITH_SUM_FUNC) | ITEM_FLAG_WITH_WINDOW_FUNC;
+  set_without_sum_func(); // QQ: Why SUM_FUNC is removed? It was not in 10.5
+  set_with_window_func();
 
   if (fix_length_and_dec())
     return TRUE;
@@ -347,8 +348,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_WINDOW_FUNC |
-                               ITEM_FLAG_WITH_SUBQUERY));
+    join_with_flags(args[i]);
   }
 
   if (fix_length_and_dec())

@@ -388,7 +388,7 @@ public:
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   {
-    flags|= ITEM_FLAG_WITH_SUBQUERY;
+    set_with_subquery();
   }
   bool fix_fields(THD *, Item **) override;
   bool fix_left(THD *thd);

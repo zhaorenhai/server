@@ -97,45 +97,31 @@ public:
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
   {
-    flags&=(item_flags_t)  ~(ITEM_FLAG_WITH_FIELD | ITEM_FLAG_WITH_FIELD);
+    with_flags= item_with_t(0); //QQ: check old code?
   }
   Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
-    copy_flags(a,
-               ITEM_FLAG_WITH_SUM_FUNC | ITEM_FLAG_WITH_FIELD |
-               ITEM_FLAG_WITH_PARAM);
+    copy_with_flags(a);
   }
   Item_func(THD *thd, Item *a, Item *b):
     Item_func_or_sum(thd, a, b)
   {
-    flags|= ((a->flags | b->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= bitor_with_flags(a, b);
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
     Item_func_or_sum(thd, a, b, c)
   {
-    flags|= ((a->flags | b->flags | c->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= bitor_with_flags(a, b, c);
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
     Item_func_or_sum(thd, a, b, c, d)
   {
-    flags|= ((a->flags | b->flags | c->flags | d->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= bitor_with_flags(a, b, c, d);
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
     Item_func_or_sum(thd, a, b, c, d, e)
   {
-    flags|= ((a->flags | b->flags | c->flags | d->flags | e->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= bitor_with_flags(a, b, c, d, e);
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)

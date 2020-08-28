@@ -24810,7 +24810,7 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
     {
       param->func_count++;
       if (reset_with_sum_func)
-	field->flags&= ~ITEM_FLAG_WITH_SUM_FUNC;
+        field->set_without_sum_func();
     }
   }
 }
@@ -25865,7 +25865,7 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
     }
     if (arg_changed)
     {
-      expr->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
+      expr->set_maybe_null_in_rollup();
       *changed= TRUE;
     }
   }
@@ -25936,7 +25936,7 @@ bool JOIN::rollup_init()
     {
       if (*group_tmp->item == item)
       {
-        item->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
+        item->set_maybe_null_in_rollup();
         found_in_group= 1;
         break;
       }
@@ -25952,7 +25952,7 @@ bool JOIN::rollup_init()
         Marking the expression item as 'with_sum_func' will ensure this.
       */ 
       if (changed)
-        item->flags|= ITEM_FLAG_WITH_SUM_FUNC;
+        item->set_with_sum_func();
     }
   }
   return 0;

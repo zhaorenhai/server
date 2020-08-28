@@ -61,12 +61,9 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
           with_null|= 1;
       }
     }
-    flags|= (item->flags & (ITEM_FLAG_MAYBE_NULL |
-                            ITEM_FLAG_WITH_SUM_FUNC |
-                            ITEM_FLAG_WITH_WINDOW_FUNC |
-                            ITEM_FLAG_WITH_FIELD |
-                            ITEM_FLAG_WITH_SUBQUERY |
-                            ITEM_FLAG_WITH_PARAM));
+    if (item->maybe_null())
+      set_maybe_null();
+    join_with_flags(item);
   }
   set_fixed();
   return FALSE;

@@ -1336,9 +1336,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
     used_tables_cache= args[0]->used_tables();
   }
   eval_not_null_tables(NULL);
-  flags|= ((args[0]->flags &  (ITEM_FLAG_WITH_SUM_FUNC | ITEM_FLAG_WITH_PARAM |
-                              ITEM_FLAG_WITH_FIELD)) |
-           (args[1]->flags & (ITEM_FLAG_WITH_PARAM)));
+  join_with_flags(args[0]);
+  join_with_flags(args[1]);
 
   if ((const_item_cache= args[0]->const_item()))
   {
@@ -1349,7 +1348,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
   {
     /* to avoid overriding is called to update left expression */
     used_tables_and_const_cache_join(args[1]);
-    flags|= args[1]->flags & ITEM_FLAG_WITH_SUM_FUNC;
+    join_with_flags(args[1]);
   }
   DBUG_RETURN(0);
 }
@@ -1370,7 +1369,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
 
   if (fix_left(thd))
     return TRUE;
-  if (args[0]->maybe_null())
+  if (args[0]->maybe_null() || args[1]->maybe_null())
     set_maybe_null();
 
   if (args[1]->fix_fields_if_needed(thd, args + 1))
@@ -1383,13 +1382,11 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  flags|= (ITEM_FLAG_FIXED | ITEM_FLAG_WITH_SUBQUERY |
-           (args[1]->flags & (ITEM_FLAG_MAYBE_NULL |
-                              ITEM_FLAG_WITH_SUM_FUNC |
-                              ITEM_FLAG_WITH_FIELD |
-                              ITEM_FLAG_WITH_PARAM)) |
-            (args[0]->flags & ITEM_FLAG_WITH_PARAM));
+  set_with_subquery();
+  join_with_flags(args[0]);
+  join_with_flags(args[1]);
   used_tables_and_const_cache_join(args[1]);
+  set_fixed();
   return FALSE;
 }
 
@@ -1935,9 +1932,7 @@ bool Item_func_interval::fix_length_and_dec()
   max_length= 2;
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
-  flags|= (row->flags & (ITEM_FLAG_WITH_SUM_FUNC |
-                         ITEM_FLAG_WITH_PARAM |
-                         ITEM_FLAG_WITH_FIELD));
+  join_with_flags(row);
   return FALSE;
 }
 
@@ -4939,12 +4934,9 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       const_item_cache= FALSE;
     } 
   
-    flags|= (item->flags & (ITEM_FLAG_WITH_SUM_FUNC |
-                            ITEM_FLAG_WITH_PARAM |
-                            ITEM_FLAG_WITH_FIELD |
-                            ITEM_FLAG_WITH_SUBQUERY |
-                            ITEM_FLAG_WITH_WINDOW_FUNC |
-                            ITEM_FLAG_MAYBE_NULL));
+    if (item->maybe_null())
+      set_maybe_null();
+    join_with_flags(item);
   }
   if (fix_length_and_dec())
     return TRUE;

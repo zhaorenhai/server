@@ -407,7 +407,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
     for (sl= thd->lex->current_select; 
          sl && sl != aggr_sel && sl->master_unit()->item;
          sl= sl->master_unit()->outer_select() )
-      sl->master_unit()->item->flags|= ITEM_FLAG_WITH_SUM_FUNC;
+      sl->master_unit()->item->set_with_sum_func();
   }
   thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
@@ -487,7 +487,8 @@ void Item_sum::mark_as_sum_func()
   cur_select->n_sum_items++;
   cur_select->with_sum_func= 1;
   const_item_cache= false;
-  flags= (flags | ITEM_FLAG_WITH_SUM_FUNC) & ~ITEM_FLAG_WITH_FIELD;
+  set_with_sum_func();
+  set_without_field();
   window_func_sum_expr_flag= false;
 }
 
@@ -1124,9 +1125,7 @@ Item_sum_num::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                               ITEM_FLAG_WITH_PARAM |
-                               ITEM_FLAG_WITH_WINDOW_FUNC));
+    join_with_flags(args[i]);
   }
   result_field=0;
   max_length=float_length(decimals);
@@ -1154,9 +1153,7 @@ Item_sum_min_max::fix_fields(THD *thd, Item **ref)
   if (args[0]->fix_fields_if_needed_for_scalar(thd, &args[0]))
     DBUG_RETURN(TRUE);
 
-  flags|= (args[0]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                             ITEM_FLAG_WITH_PARAM |
-                             ITEM_FLAG_WITH_WINDOW_FUNC));
+  join_with_flags(args[0]);
 
   if (fix_length_and_dec())
     DBUG_RETURN(TRUE);
@@ -1358,8 +1355,7 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
     set_if_bigger(decimals, args[i]->decimals);
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                              ITEM_FLAG_WITH_WINDOW_FUNC));
+    join_with_flags(args[i]);
   }
   result_field= NULL;
   max_length= float_length(decimals);
@@ -4230,9 +4226,7 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                               ITEM_FLAG_WITH_PARAM |
-                               ITEM_FLAG_WITH_WINDOW_FUNC));
+    join_with_flags(args[i]);
   }
 
   /* skip charset aggregation for order columns */

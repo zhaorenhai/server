@@ -3785,9 +3785,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                               ITEM_FLAG_WITH_PARAM |
-                               ITEM_FLAG_WITH_WINDOW_FUNC));
+    join_with_flags(args[i]);
   }
 
   /* skip charset aggregation for order columns */
