@@ -5037,9 +5037,6 @@ fil_io(
 
 	/* Do AIO */
 
-	ut_a(byte_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_a((len % OS_FILE_LOG_BLOCK_SIZE) == 0);
-
 	const char* name = node->name == NULL ? space->name : node->name;
 
 	req_type.set_fil_node(node);
