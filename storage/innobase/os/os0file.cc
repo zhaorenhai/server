@@ -82,6 +82,79 @@ Created 10/21/1995 Heikki Tuuri
 #include <winioctl.h>
 #endif
 
+#ifdef O_DIRECT
+namespace
+{
+class thread_safe_int_set_t
+{
+public:
+  typedef std::vector<int>::iterator iterator;
+
+  thread_safe_int_set_t() { mutex_.init(); }
+  ~thread_safe_int_set_t() { mutex_.destroy(); }
+
+  /** inserts if not exists */
+  void insert(int handle)
+  {
+    mutex_.enter();
+    iterator it= std::lower_bound(fds_.begin(), fds_.end(), handle);
+    if (it == fds_.end() || *it != handle)
+      fds_.insert(it, handle);
+    mutex_.exit();
+  }
+
+  bool contains(int handle) const
+  {
+    mutex_.enter();
+    bool result= std::binary_search(fds_.begin(), fds_.end(), handle);
+    mutex_.exit();
+    return result;
+  }
+
+  /** erases if exists */
+  void erase(int handle)
+  {
+    mutex_.enter();
+    iterator it= std::lower_bound(fds_.begin(), fds_.end(), handle);
+    if (it != fds_.end() && *it == handle)
+      fds_.erase(it);
+    mutex_.exit();
+  }
+
+private:
+  std::vector<int> fds_;
+  mutable OSMutex mutex_;
+};
+
+/** a set of file handles with O_DIRECT enabled */
+thread_safe_int_set_t o_direct_fds;
+
+/** actually, this is sometimes 512, but lets use a bigger value to be correct
+always(?) */
+const size_t O_DIRECT_ALIGNMENT= 4096;
+
+/** disables O_DIRECT on file when alignment requirements are violated */
+void check_o_direct_alignment(os_file_t handle, const void *buf, size_t size,
+                              size_t offset)
+{
+  if (reinterpret_cast<size_t>(buf) % O_DIRECT_ALIGNMENT == 0 &&
+      size % O_DIRECT_ALIGNMENT == 0 && offset % O_DIRECT_ALIGNMENT == 0)
+  {
+    return;
+  }
+
+  if (o_direct_fds.contains(handle))
+  {
+    fcntl(handle, F_SETFL, 0);
+    o_direct_fds.erase(handle);
+  }
+}
+
+} // namespace
+#else
+#define check_o_direct_alignment(a,b,c,d) (void)a, (void)b, (void)c, (void)d
+#endif
+
 /** Insert buffer segment id */
 static const ulint IO_IBUF_SEGMENT = 0;
 
@@ -1610,6 +1683,8 @@ SyncFileIO::execute(const IORequest& request)
 		n_bytes = pread(m_fh, m_buf, m_n, m_offset);
 	} else {
 		ut_ad(request.is_write());
+		check_o_direct_alignment(m_fh, m_buf, static_cast<size_t>(m_n),
+					 static_cast<size_t>(m_offset));
 		n_bytes = pwrite(m_fh, m_buf, m_n, m_offset);
 	}
 
@@ -1798,8 +1873,9 @@ LinuxAIOHandler::resubmit(Slot* slot)
 
 	iocb->data = slot;
 
-	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
-	     == 0);
+	check_o_direct_alignment(slot->file, iocb->u.c.buf,
+				 reinterpret_cast<size_t>(iocb->u.c.nbytes),
+				 static_cast<size_t>(iocb->u.c.offset));
 
 	/* Resubmit an I/O request */
 	int	ret = io_submit(m_array->io_ctx(m_segment), 1, &iocb);
@@ -2169,8 +2245,9 @@ AIO::linux_dispatch(Slot* slot)
 
 	io_ctx_index = (slot->pos * m_n_segments) / m_slots.size();
 
-	ut_a(reinterpret_cast<size_t>(iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
-	     == 0);
+	check_o_direct_alignment(slot->file, iocb->u.c.buf,
+				 reinterpret_cast<size_t>(iocb->u.c.nbytes),
+				 static_cast<size_t>(iocb->u.c.offset));
 
 	int	ret = io_submit(io_ctx(io_ctx_index), 1, &iocb);
 	ut_a(ret != -EINVAL);
@@ -2364,8 +2441,6 @@ AIO::is_linux_native_aio_supported()
 		io_prep_pread(p_iocb, fd, ptr, 512, 0);
 	}
 
-	ut_a(reinterpret_cast<size_t>(p_iocb->u.c.buf) % OS_FILE_LOG_BLOCK_SIZE
-	     == 0);
 	int	err = io_submit(io_ctx, 1, &p_iocb);
 	ut_a(err != -EINVAL);
 
@@ -3283,6 +3358,11 @@ bool
 os_file_close_func(
 	os_file_t	file)
 {
+
+#ifdef O_DIRECT
+	o_direct_fds.erase(file);
+#endif
+
 	int	ret = close(file);
 
 	if (ret == -1) {
@@ -5352,7 +5432,7 @@ os_file_set_nocache(
 					<< "Failed to set O_DIRECT on file"
 					<< file_name << ";" << operation_name
 					<< ": " << strerror(errno_save) << ", "
-					<< "ccontinuing anyway. O_DIRECT is "
+					<< "continuing anyway. O_DIRECT is "
 					"known to result in 'Invalid argument' "
 					"on Linux on tmpfs, "
 					"see MySQL Bug#26662.";
@@ -5370,6 +5450,8 @@ short_warning:
 				<< " : " << strerror(errno_save)
 				<< " continuing anyway.";
 		}
+	} else {
+		o_direct_fds.insert(fd);
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
 }
@@ -6285,10 +6367,6 @@ AIO::reserve_slot(
 	os_offset_t		offset,
 	ulint			len)
 {
-	ut_ad(reinterpret_cast<size_t>(buf) % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(len % OS_FILE_LOG_BLOCK_SIZE == 0);
-
 #ifdef WIN_ASYNC_IO
 	ut_a((len & 0xFFFFFFFFUL) == len);
 #endif /* WIN_ASYNC_IO */
@@ -6752,8 +6830,6 @@ os_aio_func(
 #endif /* WIN_ASYNC_IO */
 
 	ut_ad(n > 0);
-	ut_ad((n % OS_FILE_LOG_BLOCK_SIZE) == 0);
-	ut_ad((offset % OS_FILE_LOG_BLOCK_SIZE) == 0);
 	ut_ad(os_aio_validate_skip());
 
 #ifdef WIN_ASYNC_IO
