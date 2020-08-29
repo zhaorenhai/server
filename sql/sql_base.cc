@@ -1793,7 +1793,23 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
         case SQLCOM_UPDATE_MULTI:
           /* Rotation is still needed under LOCK TABLES */
           table->part_info->vers_set_hist_part(thd, false);
+          break;
         default:;
+          break;
+        }
+        if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
+        {
+          switch (thd->rgi_slave->current_event->get_type_code())
+          {
+          case UPDATE_ROWS_EVENT:
+          case UPDATE_ROWS_EVENT_V1:
+          case DELETE_ROWS_EVENT:
+          case DELETE_ROWS_EVENT_V1:
+            table->part_info->vers_set_hist_part(thd, false);
+            break;
+          default:;
+            break;
+          }
         }
       }
 #endif
@@ -2049,6 +2065,19 @@ retry_share:
       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
       table_list->mdl_request.type < MDL_EXCLUSIVE)
   {
+    if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
+    {
+      switch (thd->rgi_slave->current_event->get_type_code())
+      {
+      case UPDATE_ROWS_EVENT:
+      case UPDATE_ROWS_EVENT_V1:
+      case DELETE_ROWS_EVENT:
+      case DELETE_ROWS_EVENT_V1:
+        goto get_create_count;
+      default:;
+        break;
+      }
+    }
     switch (thd->lex->sql_command)
     {
     case SQLCOM_INSERT:
@@ -2062,6 +2091,7 @@ retry_share:
     case SQLCOM_REPLACE_SELECT:
     case SQLCOM_DELETE_MULTI:
     case SQLCOM_UPDATE_MULTI:
+get_create_count:
       ot_ctx->vers_create_count= table->part_info->vers_set_hist_part(thd, true);
       if (ot_ctx->vers_create_count)
       {
@@ -2071,7 +2101,9 @@ retry_share:
         tc_release_table(table);
         DBUG_RETURN(TRUE);
       }
+      break;
     default:;
+      break;
     }
   }
 #endif

@@ -4829,13 +4829,6 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     DBUG_RETURN(TRUE);
   }
 
-  if (alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST &&
-      (!table->part_info || !table->part_info->vers_info))
-  {
-    my_error(ER_SYNTAX_ERROR, MYF(0));
-    DBUG_RETURN(TRUE);
-  }
-
   partition_info *alt_part_info= thd->lex->part_info;
   /*
     This variable is TRUE in very special case when we add only DEFAULT
@@ -5361,8 +5354,7 @@ that are reorganised.
       */
       if (!(alter_info->partition_flags & ALTER_PARTITION_TABLE_REORG))
       {
-        if (!alt_part_info->use_default_partitions &&
-            !(alter_info->partition_flags & ALTER_PARTITION_AUTO_HIST))
+        if (!alt_part_info->use_default_partitions)
         {
           DBUG_PRINT("info", ("part_info: %p", tab_part_info));
           tab_part_info->use_default_partitions= FALSE;

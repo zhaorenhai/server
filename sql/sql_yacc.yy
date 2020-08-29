@@ -7558,17 +7558,14 @@ add_partition_rule:
 
 add_part_extra:
           /* empty */
-        | '(' part_def_list ')' opt_vers_auto_part
+        | '(' part_def_list ')'
           {
-            Lex->part_info->num_parts= Lex->part_info->partitions.elements;
-            if ($4)
-              Lex->alter_info.partition_flags|= ALTER_PARTITION_AUTO_HIST;
+            LEX *lex= Lex;
+            lex->part_info->num_parts= lex->part_info->partitions.elements;
           }
-        | PARTITIONS_SYM real_ulong_num opt_vers_auto_part
+        | PARTITIONS_SYM real_ulong_num
           {
             Lex->part_info->num_parts= $2;
-            if ($3)
-              Lex->alter_info.partition_flags|= ALTER_PARTITION_AUTO_HIST;
           }
         ;
 

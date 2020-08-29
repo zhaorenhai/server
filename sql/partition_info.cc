@@ -818,7 +818,8 @@ bool partition_info::has_unique_name(partition_element *element)
 */
 uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
 {
-  DBUG_ASSERT(!thd->lex->last_table()->vers_conditions.delete_history);
+  DBUG_ASSERT(!thd->lex->last_table() ||
+              !thd->lex->last_table()->vers_conditions.delete_history);
 
   uint create_count= 0;
   auto_hist= auto_hist && vers_info->auto_hist;
@@ -920,16 +921,14 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
   bool result= true;
   HA_CREATE_INFO create_info;
   Alter_info alter_info;
-  String query;
   partition_info *save_part_info= thd->work_part_info;
   Query_tables_list save_query_tables;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   bool save_no_write_to_binlog= thd->lex->no_write_to_binlog;
-  const CSET_STRING save_query= thd->query_string;
   thd->m_reprepare_observer= NULL;
   thd->lex->reset_n_backup_query_tables_list(&save_query_tables);
   thd->in_sub_stmt|= SUB_STMT_AUTO_HIST;
-  thd->lex->no_write_to_binlog= !thd->is_current_stmt_binlog_format_row();
+  thd->lex->no_write_to_binlog= true;
   TABLE *table= tl->table;
 
   DBUG_ASSERT(!thd->is_error());
@@ -1024,25 +1023,6 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
       goto exit;
     }
 
-    // Forge query string for rpl logging
-    if (!thd->lex->no_write_to_binlog)
-    {
-      query.set(STRING_WITH_LEN("ALTER TABLE `"), &my_charset_latin1);
-
-      if (query.append(table->s->db) ||
-          query.append(STRING_WITH_LEN("`.`")) ||
-          query.append(table->s->table_name) ||
-          query.append("` ADD PARTITION PARTITIONS ") ||
-          query.append_ulonglong(part_info->num_parts) ||
-          query.append(" AUTO"))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
-        goto exit;
-      }
-      CSET_STRING qs(query.c_ptr(), query.length(), &my_charset_latin1);
-      thd->set_query(qs);
-    }
-
     if (fast_alter_partition_table(thd, table, &alter_info, &create_info,
                                    tl, &table->s->db, &table->s->table_name))
     {
@@ -1065,7 +1045,6 @@ exit:
   thd->lex->restore_backup_query_tables_list(&save_query_tables);
   thd->in_sub_stmt&= ~SUB_STMT_AUTO_HIST;
   thd->lex->no_write_to_binlog= save_no_write_to_binlog;
-  thd->set_query(save_query);
   return result;
 }
 
