@@ -1486,6 +1486,11 @@ public:
   void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_conv_charset>(thd, this); }
+  void set_null();
+  bool setup_cache_item(THD *thd, Item *item);
+  void store_item(Item *item);
+  bool calc_and_cache();
+  void set_used_tables(table_map map);
 };
 
 class Item_func_set_collation :public Item_str_func

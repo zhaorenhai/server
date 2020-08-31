@@ -2390,6 +2390,11 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+  virtual void set_null() {};
+  virtual bool setup_cache_item(THD *thd, Item *item) { return false; }
+  virtual void store_item(Item *item) { return; }
+  virtual bool calc_and_cache() { return false; }
+  virtual void set_used_tables(table_map map) { }
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -6799,6 +6804,7 @@ public:
 
   virtual void store(Item *item);
   virtual Item *get_item() { return example; }
+  bool calc_and_cache() { return cache_value(); }
   virtual bool cache_value()= 0;
   bool basic_const_item() const
   { return example && example->basic_const_item(); }
@@ -6845,6 +6851,16 @@ public:
   { return convert_to_basic_const_item(thd); }
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg)
   { return convert_to_basic_const_item(thd); }
+
+  bool setup_cache_item(THD *thd, Item *item)
+  {
+    return setup(thd, item);
+  }
+
+  void store_item(Item *item)
+  {
+    return store(item);
+  }
 };
 
 

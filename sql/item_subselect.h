@@ -296,7 +296,7 @@ class Item_cache;
 class Item_singlerow_subselect :public Item_subselect
 {
 protected:
-  Item_cache *value, **row;
+  Item *value, **row;
 public:
   Item_singlerow_subselect(THD *thd_arg, st_select_lex *select_lex);
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
@@ -822,7 +822,7 @@ public:
   void set_thd(THD *thd_arg);
   THD * get_thd() { return thd ? thd : current_thd; }
   virtual int prepare(THD *)= 0;
-  virtual bool fix_length_and_dec(Item_cache** row)= 0;
+  virtual bool fix_length_and_dec(Item** row)= 0;
   /*
     Execute the engine
 
@@ -863,7 +863,7 @@ public:
   virtual int get_identifier() { DBUG_ASSERT(0); return 0; }
   virtual void force_reexecution() {}
 protected:
-  bool set_row(List<Item> &item_list, Item_cache **row);
+  bool set_row(List<Item> &item_list, Item **row);
 };
 
 class subselect_single_select_engine: public subselect_engine
@@ -878,7 +878,7 @@ public:
 				 Item_subselect *item);
   void cleanup();
   int prepare(THD *thd);
-  bool fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item** row);
   int exec();
   uint cols() const;
   uint8 uncacheable();
@@ -915,7 +915,7 @@ public:
 			 Item_subselect *item);
   void cleanup();
   int prepare(THD *);
-  bool fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item** row);
   int exec();
   uint cols() const;
   uint8 uncacheable();
@@ -973,7 +973,7 @@ public:
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
-  bool fix_length_and_dec(Item_cache** row);
+  bool fix_length_and_dec(Item** row);
   int exec();
   uint cols() const { return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT_INJECTED; }
@@ -1122,7 +1122,7 @@ public:
     TODO: factor out all these methods in a base subselect_index_engine class
     because all of them have dummy implementations and should never be called.
   */
-  bool fix_length_and_dec(Item_cache** row);//=>base class
+  bool fix_length_and_dec(Item** row);//=>base class
   void exclude(); //=>base class
   //=>base class
   bool change_result(Item_subselect *si,
@@ -1395,7 +1395,7 @@ public:
                                  uint count_columns_with_nulls_arg);
   int prepare(THD *thd_arg) { set_thd(thd_arg); return 0; }
   int exec();
-  bool fix_length_and_dec(Item_cache**) { return FALSE; }
+  bool fix_length_and_dec(Item**) { return FALSE; }
   uint cols() const { /* TODO: what is the correct value? */ return 1; }
   uint8 uncacheable() { return UNCACHEABLE_DEPENDENT; }
   void exclude() {}

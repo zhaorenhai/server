@@ -1202,8 +1202,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
 
 void Item_singlerow_subselect::store(uint i, Item *item)
 {
-  row[i]->store(item);
-  row[i]->cache_value();
+  row[i]->store_item(item);
+  row[i]->calc_and_cache();
 }
 
 const Type_handler *Item_singlerow_subselect::type_handler() const
@@ -1220,8 +1220,7 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   else
   {
-    if (!(row= (Item_cache**) current_thd->alloc(sizeof(Item_cache*) *
-                                                 max_columns)) ||
+    if (!(row= (Item**) current_thd->alloc(sizeof(Item*) * max_columns)) ||
         engine->fix_length_and_dec(row))
       return TRUE;
     value= *row;
@@ -3791,7 +3790,7 @@ bool subselect_single_select_engine::no_rows()
  Makes storage for the output values for the subquery and calcuates
  their data and column types and their nullability.
 */
-bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
+bool subselect_engine::set_row(List<Item> &item_list, Item **row)
 {
   Item *sel_item;
   List_iterator_fast<Item> li(item_list);
@@ -3805,7 +3804,8 @@ bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
     maybe_null= sel_item->maybe_null;
     if (!(row[i]= sel_item->get_cache(thd)))
       return TRUE;
-    row[i]->setup(thd, sel_item);
+    row[i]->setup_cache_item(thd, sel_item);
+    row[i]->set_used_tables(sel_item->used_tables());
  //psergey-backport-timours:   row[i]->store(sel_item);
   }
   if (item_list.elements > 1)
@@ -3813,7 +3813,7 @@ bool subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
   return FALSE;
 }
 
-bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_single_select_engine::fix_length_and_dec(Item **row)
 {
   DBUG_ASSERT(row || select_lex->item_list.elements==1);
   if (set_row(select_lex->item_list, row))
@@ -3824,7 +3824,7 @@ bool subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
   return FALSE;
 }
 
-bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_union_engine::fix_length_and_dec(Item **row)
 {
   DBUG_ASSERT(row || unit->first_select()->item_list.elements==1);
 
@@ -3844,7 +3844,7 @@ bool subselect_union_engine::fix_length_and_dec(Item_cache **row)
   return FALSE;
 }
 
-bool subselect_uniquesubquery_engine::fix_length_and_dec(Item_cache **row)
+bool subselect_uniquesubquery_engine::fix_length_and_dec(Item **row)
 {
   //this never should be called
   DBUG_ASSERT(0);
@@ -5673,7 +5673,7 @@ void subselect_hash_sj_engine::print(String *str, enum_query_type query_type)
          ));
 }
 
-bool subselect_hash_sj_engine::fix_length_and_dec(Item_cache** row)
+bool subselect_hash_sj_engine::fix_length_and_dec(Item** row)
 {
   DBUG_ASSERT(FALSE);
   return FALSE;

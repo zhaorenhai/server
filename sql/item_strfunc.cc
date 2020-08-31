@@ -3549,6 +3549,32 @@ void Item_func_conv_charset::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
+void Item_func_conv_charset::set_null()
+{
+  return args[0]->set_null();
+}
+
+bool Item_func_conv_charset::setup_cache_item(THD *thd, Item *item)
+{
+  return args[0]->setup_cache_item(thd, item);
+}
+
+void Item_func_conv_charset::store_item(Item *item)
+{
+  args[0]->store_item(item);
+}
+
+bool Item_func_conv_charset::calc_and_cache()
+{
+  return args[0]->calc_and_cache();
+}
+
+void Item_func_conv_charset::set_used_tables(table_map map)
+{
+  args[0]->set_used_tables(map);
+}
+
 String *Item_func_set_collation::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
