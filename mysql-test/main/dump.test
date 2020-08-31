@@ -1,0 +1,76 @@
+--echo #
+--echo # MDEV-21786:
+--echo # myslqdump will forget sequence definition details on --no-data dump
+--echo #
+create database d;
+use d;
+
+CREATE SEQUENCE s1 START WITH 100 INCREMENT BY 10 MINVALUE=100 MAXVALUE=1100 CYCLE;
+CREATE SEQUENCE s2 START WITH 200 INCREMENT BY 20 MINVALUE=200 MAXVALUE=1200 CYCLE;
+CREATE SEQUENCE s3 START WITH 300 INCREMENT BY 30 MINVALUE=300 MAXVALUE=1300 CYCLE;
+CREATE SEQUENCE s4 START WITH 400 INCREMENT BY 40 MINVALUE=400 MAXVALUE=1400 CYCLE;
+
+--echo # Show create before dump
+show create sequence s1;
+show create sequence s2;
+show create sequence s3;
+show create sequence s4;
+
+--echo # Dump sequence without `--no-data`
+--exec $MYSQL_DUMP --databases d > $MYSQLTEST_VARDIR/tmp/dump1.sql
+--echo # Restore from mysqldump
+--exec $MYSQL -Dd < $MYSQLTEST_VARDIR/tmp/dump1.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump1.sql
+
+--echo # Show create after dump
+show create sequence s1;
+show create sequence s2;
+show create sequence s3;
+show create sequence s4;
+
+--echo # Dump sequence with `--no-data`
+--exec $MYSQL_DUMP --databases d --no-data > $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+--echo # Restore from mysqldump
+--exec $MYSQL -Dd < $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+
+--echo # Show create after dump `--no-data`
+show create sequence s1;
+show create sequence s2;
+show create sequence s3;
+show create sequence s4;
+
+drop sequence s1, s2, s3, s4;
+drop database d;
+
+--echo #
+--echo # MDEV-20070
+--echo # mysqldump won't work correct on sequences
+--echo #
+
+DROP DATABASE IF EXISTS test1;
+DROP DATABASE IF EXISTS test2;
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE seq_t_i INCREMENT 5 START WITH 1;
+CREATE TABLE t(
+i integer DEFAULT nextval(seq_t_i),
+j integer
+);
+INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
+SELECT SETVAL(seq_t_i, 4);
+INSERT INTO t(j) VALUES (5),(6),(7);
+SELECT SETVAL(seq_t_i,200);
+INSERT INTO t(j) VALUES (201),(202),(203);
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--error 1
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+DROP DATABASE IF EXISTS test1;
+DROP DATABASE IF EXISTS test2;
