@@ -71,12 +71,11 @@ Created 1/20/1994 Heikki Tuuri
 #elif defined(__powerpc__) && defined __GLIBC__
 # include <sys/platform/ppc.h>
 # define UT_RELAX_CPU() __ppc_get_timebase()
+#elif defined __GNUC__
+/* Mainly, prevent the compiler from optimizing away delay loops */
+# define UT_RELAX_CPU() __asm__ __volatile__ ("":::"memory")
 #else
-# define UT_RELAX_CPU() do { \
-     volatile int32	volatile_var; \
-     int32 oldval= 0; \
-     my_atomic_cas32(&volatile_var, &oldval, 1); \
-   } while (0)
+# define UT_RELAX_CPU()
 #endif
 
 #if defined (__GNUC__)
