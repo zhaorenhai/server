@@ -90,14 +90,6 @@ struct Vers_part_info : public Sql_alloc
       DBUG_ASSERT(step.year);
       return step.year * 86400 * 30 * 365;
     }
-    bool lt(size_t secs) const
-    {
-      return seconds() < secs;
-    }
-    bool ge(size_t seconds) const
-    {
-      return !(this->lt(seconds));
-    }
   } interval;
   ulonglong limit;
   bool auto_hist;

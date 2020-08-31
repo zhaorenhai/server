@@ -7377,9 +7377,6 @@ void THD::reset_for_next_command(bool do_clear_error)
       global_system_variables.auto_increment_increment;
   }
 #endif /* WITH_WSREP */
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  vers_auto_part_tables.empty();
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   query_start_sec_part_used= 0;
   is_fatal_error= time_zone_used= 0;

@@ -1620,6 +1620,52 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
 }
 
 
+bool TABLE::vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) const
+{
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (part_info && part_info->part_type == VERSIONING_PARTITION &&
+      !table_list->vers_conditions.delete_history &&
+      !thd->stmt_arena->is_stmt_prepare() &&
+      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
+       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
+      table_list->mdl_request.type < MDL_EXCLUSIVE)
+  {
+    switch (thd->lex->sql_command)
+    {
+    case SQLCOM_INSERT:
+      if (thd->lex->duplicates != DUP_UPDATE)
+        break;
+    /* fall-through: */
+    case SQLCOM_LOCK_TABLES:
+    case SQLCOM_DELETE:
+    case SQLCOM_UPDATE:
+    case SQLCOM_REPLACE:
+    case SQLCOM_REPLACE_SELECT:
+    case SQLCOM_DELETE_MULTI:
+    case SQLCOM_UPDATE_MULTI:
+      return true;
+    default:;
+      break;
+    }
+    if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
+    {
+      switch (thd->rgi_slave->current_event->get_type_code())
+      {
+      case UPDATE_ROWS_EVENT:
+      case UPDATE_ROWS_EVENT_V1:
+      case DELETE_ROWS_EVENT:
+      case DELETE_ROWS_EVENT_V1:
+        return true;
+      default:;
+        break;
+      }
+    }
+  }
+#endif
+  return false;
+}
+
+
 /**
   Open a base table.
 
@@ -1772,45 +1818,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
-      if (table->part_info &&
-          table->part_info->part_type == VERSIONING_PARTITION &&
-          !table_list->vers_conditions.delete_history &&
-          !thd->stmt_arena->is_stmt_prepare() &&
-          table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
-          table_list->mdl_request.type == MDL_SHARED_WRITE)
+      if (table->vers_need_hist_part(thd, table_list))
       {
-        switch (thd->lex->sql_command)
-        {
-        case SQLCOM_INSERT:
-          if (thd->lex->duplicates != DUP_UPDATE)
-            break;
-        /* fall-through: */
-        case SQLCOM_DELETE:
-        case SQLCOM_UPDATE:
-        case SQLCOM_REPLACE:
-        case SQLCOM_REPLACE_SELECT:
-        case SQLCOM_DELETE_MULTI:
-        case SQLCOM_UPDATE_MULTI:
-          /* Rotation is still needed under LOCK TABLES */
-          table->part_info->vers_set_hist_part(thd, false);
-          break;
-        default:;
-          break;
-        }
-        if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
-        {
-          switch (thd->rgi_slave->current_event->get_type_code())
-          {
-          case UPDATE_ROWS_EVENT:
-          case UPDATE_ROWS_EVENT_V1:
-          case DELETE_ROWS_EVENT:
-          case DELETE_ROWS_EVENT_V1:
-            table->part_info->vers_set_hist_part(thd, false);
-            break;
-          default:;
-            break;
-          }
-        }
+        /* Rotation is still needed under LOCK TABLES */
+        table->part_info->vers_set_hist_part(thd, false);
       }
 #endif
       goto reset;
@@ -2055,58 +2066,19 @@ retry_share:
     tc_add_table(thd, table);
   }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (table->part_info &&
-      table->part_info->part_type == VERSIONING_PARTITION &&
-      !table_list->vers_conditions.delete_history &&
-      !ot_ctx->vers_create_count &&
-      !thd->stmt_arena->is_stmt_prepare() &&
-      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
-      table_list->mdl_request.type >= MDL_SHARED_WRITE &&
-      table_list->mdl_request.type < MDL_EXCLUSIVE)
+  if (!ot_ctx->vers_create_count &&
+      table->vers_need_hist_part(thd, table_list))
   {
-    if (thd->rgi_slave && thd->rgi_slave->current_event && thd->lex->sql_command == SQLCOM_END)
+    ot_ctx->vers_create_count= table->part_info->vers_set_hist_part(thd, true);
+    if (ot_ctx->vers_create_count)
     {
-      switch (thd->rgi_slave->current_event->get_type_code())
-      {
-      case UPDATE_ROWS_EVENT:
-      case UPDATE_ROWS_EVENT_V1:
-      case DELETE_ROWS_EVENT:
-      case DELETE_ROWS_EVENT_V1:
-        goto get_create_count;
-      default:;
-        break;
-      }
-    }
-    switch (thd->lex->sql_command)
-    {
-    case SQLCOM_INSERT:
-      if (thd->lex->duplicates != DUP_UPDATE)
-        break;
-    /* fall-through: */
-    case SQLCOM_LOCK_TABLES:
-    case SQLCOM_DELETE:
-    case SQLCOM_UPDATE:
-    case SQLCOM_REPLACE:
-    case SQLCOM_REPLACE_SELECT:
-    case SQLCOM_DELETE_MULTI:
-    case SQLCOM_UPDATE_MULTI:
-get_create_count:
-      ot_ctx->vers_create_count= table->part_info->vers_set_hist_part(thd, true);
-      if (ot_ctx->vers_create_count)
-      {
-        ot_ctx->request_backoff_action(Open_table_context::OT_ADD_HISTORY_PARTITION,
-                                       table_list);
-        MYSQL_UNBIND_TABLE(table->file);
-        tc_release_table(table);
-        DBUG_RETURN(TRUE);
-      }
-      break;
-    default:;
-      break;
+      MYSQL_UNBIND_TABLE(table->file);
+      tc_release_table(table);
+      ot_ctx->request_backoff_action(Open_table_context::OT_ADD_HISTORY_PARTITION,
+                                      table_list);
+      DBUG_RETURN(TRUE);
     }
   }
-#endif
 
   if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
       table->s->table_category < TABLE_CATEGORY_INFORMATION)
