@@ -10,7 +10,8 @@
 	branch = master
 [submodule "extra/wolfssl/wolfssl"]
 	path = extra/wolfssl/wolfssl
-	url = https://github.com/wolfSSL/wolfssl.git
+	url = https://github.com/dr-m/wolfssl.git
+	branch = intel-intrinsics
 [submodule "storage/maria/libmarias3"]
 	path = storage/maria/libmarias3
 	url = https://github.com/mariadb-corporation/libmarias3.git
