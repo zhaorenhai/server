@@ -82,9 +82,9 @@
 #ifndef HAVE_WOLFSSL
 #define EVP_MD_CTX_reset(X) EVP_MD_CTX_cleanup(X)
 #define EVP_CIPHER_CTX_reset(X) EVP_CIPHER_CTX_cleanup(X)
-#endif
 #define X509_get0_notBefore(X) X509_get_notBefore(X)
 #define X509_get0_notAfter(X) X509_get_notAfter(X)
+#endif
 #endif
 
 #ifndef TLS1_3_VERSION
