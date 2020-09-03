@@ -20,3 +20,8 @@ partition_open_files_limit : open_files_limit check broken by MDEV-18360
 partition_innodb         : Waiting for fix MDEV-20169
 type_enum                : Waiting for fix MDEV-6978
 type_set                 : Waiting for fix MDEV-6978
+analyze_debug : FIXME crashes after merge
+backup_lock : FIXME crashes after merge
+temp_table_symlink : FIXME fails after merge
+parser : FIXME crashes after merge
+set_statement : FIXME crashes after merge

@@ -2447,8 +2447,6 @@ create:
             Lex->create_info.default_table_charset= NULL;
             Lex->create_info.schema_comment= NULL;
             Lex->create_info.used_fields= 0;
-            if (Lex->main_select_push())
-              MYSQL_YYABORT;
           }
           opt_create_database_options
           {
@@ -2457,7 +2455,6 @@ create:
                          $1 | $3)))
                MYSQL_YYABORT;
             lex->name= $4;
-            Lex->pop_select(); //main select
           }
         | create_or_replace definer_opt opt_view_suid VIEW_SYM
           opt_if_not_exists table_ident
@@ -3174,10 +3171,13 @@ sp_cursor_stmt:
           {
             DBUG_ASSERT(thd->free_list == NULL);
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           select
           {
             DBUG_ASSERT(Lex == $1);
+            Lex->pop_select(); //main select
             if (unlikely($1->stmt_finalize(thd)) ||
                 unlikely($1->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
@@ -3623,6 +3623,11 @@ sp_proc_stmt_statement:
             Lex_input_stream *lip= YYLIP;
 
             lex->sphead->reset_lex(thd);
+            /*
+              We should not push main select here, it will be done or not
+              done by the statement, we just provide only a new LEX for the
+              statement here as if it is start of parsing a new statement.
+            */
             lex->sphead->m_tmp_query= lip->get_tok_start();
           }
           sp_statement
@@ -3762,6 +3767,8 @@ assignment_source_expr:
           {
             DBUG_ASSERT(thd->free_list == NULL);
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
           }
           expr
           {
@@ -3770,6 +3777,7 @@ assignment_source_expr:
             $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, thd->free_list);
             thd->free_list= NULL;
+            Lex->pop_select(); //min select
             if ($$->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
@@ -3779,6 +3787,8 @@ for_loop_bound_expr:
           assignment_source_lex
           {
             Lex->sphead->reset_lex(thd, $1);
+            if (Lex->main_select_push(true))
+              MYSQL_YYABORT;
             Lex->current_select->parsing_place= FOR_LOOP_BOUND;
           }
           expr
@@ -3787,6 +3797,7 @@ for_loop_bound_expr:
             $$= $1;
             $$->sp_lex_in_use= true;
             $$->set_item_and_free_list($3, NULL);
+            Lex->pop_select(); //main select
             if (unlikely($$->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
             Lex->current_select->parsing_place= NO_MATTER;
@@ -7160,7 +7171,7 @@ alter:
             Lex->create_info.default_table_charset= NULL;
             Lex->create_info.schema_comment= NULL;
             Lex->create_info.used_fields= 0;
-            if (Lex->main_select_push())
+            if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
           create_database_options
@@ -12611,7 +12622,7 @@ do:
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_DO;
-            if (lex->main_select_push())
+            if (lex->main_select_push(true))
               MYSQL_YYABORT;
             mysql_init_select(lex);
           }
@@ -16070,7 +16081,7 @@ set:
           SET
           {
             LEX *lex=Lex;
-            if (lex->main_select_push())
+            if (lex->main_select_push(true))
               MYSQL_YYABORT;
             lex->set_stmt_init();
           }
