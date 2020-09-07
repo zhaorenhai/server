@@ -1490,8 +1490,39 @@ int ha_commit_trans(THD *thd, bool all)
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+  MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
+
+  if (rw_trans)
+  {
+    /*
+      Acquire a metadata lock which will ensure that COMMIT is blocked
+      by an active FLUSH TABLES WITH READ LOCK (and vice versa:
+      COMMIT in progress blocks FTWRL).
+
+      We allow the owner of FTWRL to COMMIT; we assume that it knows
+      what it does.
+    */
+    mdl_backup.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
+
+    if (!WSREP(thd))
+    {
+      if (thd->mdl_context.acquire_lock(&mdl_backup,
+                                        thd->variables.lock_wait_timeout))
+      {
+        ha_rollback_trans(thd, all);
+        DBUG_RETURN(1);
+      }
+      thd->backup_commit_lock= &mdl_backup;
+    }
+    DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
+
+    /* Use shortcut as we already have the MDL_BACKUP_COMMIT lock */
+    ha_maria::implicit_commit(thd, TRUE);
+  }
+  else
+    ha_maria_implicit_commit(thd, TRUE);
 
   if (rw_trans &&
       opt_readonly &&
@@ -1685,6 +1716,17 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
+  if (mdl_backup.ticket)
+  {
+    /*
+      We do not always immediately release transactional locks
+      after ha_commit_trans() (see uses of ha_enable_transaction()),
+      thus we release the commit blocker lock as soon as it's
+      not needed.
+    */
+    thd->mdl_context.release_lock(mdl_backup.ticket);
+  }
+  thd->backup_commit_lock= 0;
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
       (rw_ha_count == 0 || all) &&
@@ -1699,8 +1741,8 @@ end:
 
 /**
   @note
-  This function does not care about global read lock. A caller should.
-  However backup locks are handled in commit_one_phase_2.
+  This function does not care about global read lock or backup locks,
+  the caller should.
 
   @param[in]  all  Is set in case of explicit commit
                    (COMMIT statement), or implicit commit
@@ -1747,37 +1789,9 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans,
   int error= 0;
   uint count= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-  MDL_request mdl_request;
   DBUG_ENTER("commit_one_phase_2");
   if (is_real_trans)
     DEBUG_SYNC(thd, "commit_one_phase_2");
-
-  if (rw_trans)
-  {
-    /*
-      Acquire a metadata lock which will ensure that COMMIT is blocked
-      by an active FLUSH TABLES WITH READ LOCK (and vice versa:
-      COMMIT in progress blocks FTWRL).
-
-      We allow the owner of FTWRL to COMMIT; we assume that it knows
-      what it does.
-    */
-    mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
-
-    if (!WSREP(thd) &&
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
-    {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
-      ha_rollback_trans(thd, all);
-      DBUG_RETURN(1);
-    }
-    DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
-  }
-
-#if defined(WITH_ARIA_STORAGE_ENGINE) && MYSQL_VERSION_ID < 100500
-  ha_maria::implicit_commit(thd, TRUE);
-#endif
 
   if (ha_info)
   {
@@ -1806,16 +1820,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans,
         query_cache.invalidate(thd, thd->transaction.changed_tables);
 #endif
     }
-  }
-  if (mdl_request.ticket)
-  {
-    /*
-      We do not always immediately release transactional locks
-      after ha_commit_trans() (see uses of ha_enable_transaction()),
-      thus we release the commit blocker lock as soon as it's
-      not needed.
-    */
-    thd->mdl_context.release_lock(mdl_request.ticket);
   }
 
   /* Free resources and perform other cleanup even for 'empty' transactions. */
