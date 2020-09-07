@@ -553,8 +553,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 			mem_heap_dup(heap, table.v_col_names,
 				     ulint(end - table.v_col_names)));
 		v_cols = static_cast<dict_v_col_t*>(
-			mem_heap_dup(heap, table.v_cols,
-				     table.n_v_cols * sizeof *v_cols));
+			mem_heap_alloc(heap, table.n_v_cols * sizeof(*v_cols)));
+		for (ulint i = table.n_v_cols; i--; ) {
+			new (&v_cols[i]) dict_v_col_t(table.v_cols[i]);
+		}
 	} else {
 		ut_ad(table.n_v_cols == 0);
 		v_col_names = NULL;
@@ -569,7 +571,6 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
-		DBUG_ASSERT(v.v_indexes.empty());
 		v.n_v_indexes = 0;
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
