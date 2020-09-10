@@ -9142,7 +9142,7 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
     conjuncted multiple equalities) only on one column.
 
     Eg:
-      WHER clause is:
+      WHERE clause is:
          t1.a=t2.b and (t1.a > 5 or t2.b < 1);
 
       the predicate (t1.a > 5 or t2.b < 1) can be resolved with the help of
@@ -9157,7 +9157,7 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
     FALSE  : OTHERWISE
 
 */
-bool Item_field::is_item_selectivity_covered(void *arg)
+bool Item_field::is_predicate_selectivity_covered(void *arg)
 {
   SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
   /*

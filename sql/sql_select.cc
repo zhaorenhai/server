@@ -29384,7 +29384,7 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
     while ((item= li++))
     {
       SAME_FIELD arg= {NULL, this, FALSE, NULL, FALSE};
-      if (item->walk(&Item::is_item_selectivity_covered, 0, &arg))
+      if (item->walk(&Item::is_predicate_selectivity_covered, 0, &arg))
         return false;
     }
     return true;
@@ -29392,7 +29392,7 @@ bool JOIN::all_selectivity_accounted_for_join_cardinality()
   else
   {
     SAME_FIELD arg= {NULL, this, FALSE, NULL, FALSE};
-    return !conds->walk(&Item::is_item_selectivity_covered, 0, &arg);
+    return !conds->walk(&Item::is_predicate_selectivity_covered, 0, &arg);
   }
 }
 

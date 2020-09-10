@@ -201,7 +201,7 @@ typedef struct same_field
     TRUE : statistics available for the field via keys or EITS
     FALSE: otherwise
 
-    @see Item_field::is_item_selectivity_covered
+    @see Item_field::is_predicate_selectivity_covered
   */
   bool is_statistics_available;
 }SAME_FIELD;
