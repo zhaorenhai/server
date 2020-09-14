@@ -61,6 +61,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_service_manager.h>
 #include <key.h>
 
+#include <my_stacktrace.h>
+
 /* Include necessary InnoDB headers */
 #include "btr0btr.h"
 #include "btr0cur.h"
@@ -19616,6 +19618,51 @@ innobase_debug_sync_set(THD *thd, st_mysql_sys_var*, void *, const void *value)
 	srv_for_each_thread(SRV_WORKER, innobase_debug_sync_callback, value);
 	srv_for_each_thread(SRV_PURGE, innobase_debug_sync_callback, value);
 }
+
+/*
+static
+void
+innobase_debug_que_eval_set(
+		THD *thd, st_mysql_sys_var*, void *, const void *value)
+{
+	const char *value_str = *static_cast<const char* const*>(value);
+	trx_t* trx = innobase_trx_allocate(thd);
+	pars_info_t* info = pars_info_create();
+	dberr_t err = que_eval_sql(info, value_str, FALSE, trx);
+
+	innobase_commit_low(trx);
+
+	trx_free_for_mysql(trx);
+}
+*/
+
+static int innodb_debug_que_eval_validate(THD* thd, st_mysql_sys_var*,
+					void* save, st_mysql_value* value)
+{
+	dberr_t err = DB_ERROR;
+	char buf[STRING_BUFFER_USUAL_SIZE];
+	int len = sizeof buf;
+	const char* query = value->val_str(value, buf, &len);
+	if (query) {
+		trx_t* trx = innobase_trx_allocate(thd);
+		row_mysql_lock_data_dictionary(trx);
+		pars_info_t* info = pars_info_create();
+//		dict_table_get_low("SYS_FOREIGN");
+		err = que_eval_sql(info,
+					"PROCEDURE BLABLABLA () IS\n"
+					"BEGIN\n"
+					"SELECT a FROM test/t;\n"
+					"END;\n"
+				, FALSE, trx);
+		innobase_commit_low(trx);
+		row_mysql_unlock_data_dictionary(trx);
+		trx_free_for_mysql(trx);
+		*static_cast<const char**>(save) = query;
+	}
+	return !query || (err != DB_SUCCESS);
+}
+
+
 #endif
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -21240,6 +21287,13 @@ static MYSQL_SYSVAR_STR(debug_sync, innobase_debug_sync,
 			"the beginning of purging the next undo record.",
 			NULL,
 			innobase_debug_sync_set, NULL);
+
+char *innobase_debug_que_eval_sql;
+static MYSQL_SYSVAR_STR(debug_que_eval_sql, innobase_debug_que_eval_sql,
+			PLUGIN_VAR_NOCMDARG|PLUGIN_VAR_MEMALLOC,
+			"blablabla",
+			innodb_debug_que_eval_validate,
+			NULL, /* innobase_debug_que_eval_set,*/ NULL);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(instrument_semaphores, innodb_instrument_semaphores,
@@ -21464,6 +21518,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(debug_force_scrubbing),
   MYSQL_SYSVAR(debug_sync),
+  MYSQL_SYSVAR(debug_que_eval_sql),
 #endif
   MYSQL_SYSVAR(instrument_semaphores),
   MYSQL_SYSVAR(buf_dump_status_frequency),
