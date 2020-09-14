@@ -7736,8 +7736,8 @@ static void append_session_track_info(DYNAMIC_STRING *ds, MYSQL *mysql)
         case SESSION_TRACK_TRANSACTION_CHARACTERISTICS:
           dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_CHARACTERISTICS\n");
           break;
-        case SESSION_TRACK_TRANSACTION_TYPE:
-          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_TYPE\n");
+        case SESSION_TRACK_TRANSACTION_STATE:
+          dynstr_append(ds, "Tracker : SESSION_TRACK_TRANSACTION_STATE\n");
           break;
         default:
           DBUG_ASSERT(0);
