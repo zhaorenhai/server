@@ -103,6 +103,14 @@ EOF
 	    rmdir $mysql_upgradedir 2>/dev/null || true
 
     done
+    # Upgrading from mysql.com needs might have the root user as auth_socket.
+    # As this is needed to perform mariadb-upgrade, and mariadb uses unix_socket,
+    # change it now (MDEV-22678).  To keep the impact minimal, we skip innodb
+    # and set key-buffer-size to 0 as it isn't used.
+    if [ -f "$mysql_datadir"/auto.cnf ]; then
+         echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';"  \
+             | /usr/sbin/mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap
+    fi
 
     # Ensure the existence and right permissions for the database and
     # log files. Use mkdir option 'Z' to create with correct SELinux context.
