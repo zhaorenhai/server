@@ -457,6 +457,7 @@ drop table t50;
 
 --echo "----------Test5---------"
 create table t50 (s1 int, s2 varchar(200), fulltext key(s2)) engine = innodb;
+INSERT INTO t50 VALUES(100, 'This is for MDEV-515');
 set @@autocommit=0;
 insert into t50 values (1,'Sunshine'),(2,'Lollipops');
 select * from t50 where match(s2) against('Rainbows');
@@ -1340,4 +1341,3 @@ INSERT INTO t1 VALUES(repeat("this is the test case", 500));
 ALTER TABLE t1 KEY_BLOCK_SIZE=4;
 ALTER TABLE t1 KEY_BLOCK_SIZE=0;
 DROP TABLE t1;
-

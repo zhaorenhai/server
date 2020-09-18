@@ -115,6 +115,8 @@ title VARCHAR(200),
 body TEXT,
 FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
+INSERT INTO articles (title, body) VALUES
+('This is for MDEV-515', 'This is for MDEV-515');
 BEGIN;
 INSERT INTO articles (title, body) VALUES
 ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),
@@ -125,7 +127,7 @@ INSERT INTO articles (title, body) VALUES
 # restart
 SELECT COUNT(*) FROM articles;
 COUNT(*)
-0
+1
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('mysql');
 id	title	body
@@ -139,28 +141,28 @@ INSERT INTO articles (title, body) VALUES
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('MySQL');
 id	title	body
-6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
-7	How To Use MySQL Well	After you went through a ...
-8	Optimizing MySQL	In this tutorial we will show ...
-9	1001 MySQL Tricks	How to use full-text search engine
+7	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+8	How To Use MySQL Well	After you went through a ...
+9	Optimizing MySQL	In this tutorial we will show ...
+10	1001 MySQL Tricks	How to use full-text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('tutorial');
 id	title	body
-6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
-8	Optimizing MySQL	In this tutorial we will show ...
+7	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+9	Optimizing MySQL	In this tutorial we will show ...
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('Tricks');
 id	title	body
-9	1001 MySQL Tricks	How to use full-text search engine
-10	Go MariaDB Tricks	How to use full text search engine
+10	1001 MySQL Tricks	How to use full-text search engine
+11	Go MariaDB Tricks	How to use full text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full text search');
 id	title	body
-10	Go MariaDB Tricks	How to use full text search engine
-9	1001 MySQL Tricks	How to use full-text search engine
+11	Go MariaDB Tricks	How to use full text search engine
+10	1001 MySQL Tricks	How to use full-text search engine
 SELECT COUNT(*) FROM articles;
 COUNT(*)
-5
+6
 DROP TABLE articles;
 # Test Part 5: Test Uninstall Plugin After Index is Built
 CREATE TABLE articles (

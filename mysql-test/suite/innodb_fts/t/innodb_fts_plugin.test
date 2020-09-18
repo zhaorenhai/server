@@ -125,6 +125,9 @@ CREATE TABLE articles (
        FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
 
+INSERT INTO articles (title, body) VALUES
+  ('This is for MDEV-515', 'This is for MDEV-515');
+
 BEGIN;
 INSERT INTO articles (title, body) VALUES
   ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),

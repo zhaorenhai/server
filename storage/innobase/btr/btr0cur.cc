@@ -5513,6 +5513,8 @@ btr_cur_optimistic_delete_func(
 				/* MDEV-17383: free metadata BLOBs! */
 				index->clear_instant_alter();
 			}
+
+			index->table->remove_bulk_trx();
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));
 			return true;

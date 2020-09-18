@@ -467,6 +467,7 @@ id	s2
 drop table t50;
 "----------Test5---------"
 create table t50 (s1 int, s2 varchar(200), fulltext key(s2)) engine = innodb;
+INSERT INTO t50 VALUES(100, 'This is for MDEV-515');
 set @@autocommit=0;
 insert into t50 values (1,'Sunshine'),(2,'Lollipops');
 select * from t50 where match(s2) against('Rainbows');
@@ -474,6 +475,7 @@ s1	s2
 rollback;
 select * from t50;
 s1	s2
+100	This is for MDEV-515
 drop table t50;
 set @@autocommit=1;
 "----------Test6---------"
