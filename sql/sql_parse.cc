@@ -7649,7 +7649,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
     /*
       Convert all ER_QUERY_INTERRUPTED errors to ER_LOCK_DEADLOCK
       if the transaction was BF aborted. This can happen when the
-      transaction is being BF aborted via thd->awake() while it is
+      transaction is being BF aborted via thd->kill_me_pls() while it is
       still executing.
 
       Note that this must be done before wsrep_after_statement() call
@@ -9047,6 +9047,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 #endif /* WITH_WSREP */
     {
 #ifdef WITH_WSREP
+      // following is historic name, mean kill_me_pls_no_mutex now
       DEBUG_SYNC(thd, "before_awake_no_mutex");
       if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
       {
@@ -9060,7 +9061,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       {
       WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
                   thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
-        tmp->awake_no_mutex(kill_signal);
+        tmp->kill_me_pls_no_mutex(kill_signal);
         WSREP_DEBUG("victim: %llu taken care of", id);
         error= 0;
       }
@@ -9152,7 +9153,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
     THD *ptr= it2++;
     do
     {
-      ptr->awake_no_mutex(kill_signal);
+      ptr->kill_me_pls_no_mutex(kill_signal);
       /*
         Careful here: The list nodes are allocated on the memroots of the
         THDs to be awakened.

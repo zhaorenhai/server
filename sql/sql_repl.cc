@@ -3495,7 +3495,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
       it will be slow because it will iterate through the list
       again. We just to do kill the thread ourselves.
     */
-    arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
+    arg.thd->kill_me_pls_no_mutex(KILL_SLAVE_SAME_ID);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
     if (WSREP(arg.thd)) mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
   }

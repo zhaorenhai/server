@@ -535,7 +535,7 @@ handle_slave_background(void *arg __attribute__((unused)))
       THD *to_kill= p->to_kill;
       kill_list= p->next;
 
-      to_kill->awake(KILL_CONNECTION);
+      to_kill->kill_me_pls(KILL_CONNECTION);
       mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
       to_kill->rgi_slave->killed_for_retry=
         rpl_group_info::RETRY_KILL_KILLED;
@@ -1216,7 +1216,7 @@ terminate_slave_thread(THD *thd,
     DBUG_PRINT("loop", ("killing slave thread"));
 
 #ifdef WITH_WSREP
-    /* awake_no_mutex() requires LOCK_thd_data to be locked if wsrep
+    /* kill_me_pls_no_mutex() requires LOCK_thd_data to be locked if wsrep
        is enabled */
     if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
 #endif /* WITH_WSREP */
@@ -1230,7 +1230,8 @@ terminate_slave_thread(THD *thd,
     int err __attribute__((unused))= pthread_kill(thd->real_id, thr_client_alarm);
     DBUG_ASSERT(err != EINVAL);
 #endif
-    thd->awake_no_mutex(NOT_KILLED);
+    thd->kill_me_pls_no_mutex(NOT_KILLED);
+
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
 #ifdef WITH_WSREP

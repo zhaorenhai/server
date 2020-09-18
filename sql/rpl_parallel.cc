@@ -2203,7 +2203,7 @@ rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
           /*
             We need to do the debug_sync before ENTER_COND().
             Because debug_sync changes the thd->mysys_var->current_mutex,
-            and this can cause THD::awake to use the wrong mutex.
+            and this can cause THD::kill_me_pls to use the wrong mutex.
           */
           DBUG_EXECUTE_IF("rpl_parallel_wait_queue_max",
             {

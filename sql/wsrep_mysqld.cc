@@ -2574,8 +2574,11 @@ static my_bool kill_all_threads(THD *thd, THD *caller_thd)
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
-      /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
-      thd->awake(KILL_CONNECTION);
+      /*
+        instead of wsrep_close_thread() we do now  soft kill by
+        THD::kill_me_pls
+      */
+      thd->kill_me_pls(KILL_CONNECTION);
     }
   }
   return 0;

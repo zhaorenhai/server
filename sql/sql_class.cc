@@ -633,7 +633,7 @@ extern "C" void thd_kill_timeout(THD* thd)
 {
   thd->status_var.max_statement_time_exceeded++;
   /* Kill queries that can't cause data corruptions */
-  thd->awake(KILL_TIMEOUT);
+  thd->kill_me_pls(KILL_TIMEOUT);
 }
 
 THD::THD(my_thread_id id, bool is_wsrep_applier)
@@ -1887,9 +1887,9 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
         NOT_KILLED is used to awake a thread for a slave
 */
 
-void THD::awake_no_mutex(killed_state state_to_set)
+void THD::kill_me_pls_no_mutex(killed_state state_to_set)
 {
-  DBUG_ENTER("THD::awake");
+  DBUG_ENTER("THD::kill_me_pls_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
@@ -1930,9 +1930,20 @@ void THD::awake_no_mutex(killed_state state_to_set)
                state_to_set != NOT_KILLED))
     ha_kill_query(this, thd_kill_level(this));
 
+
+  awake_me();
+  DBUG_VOID_RETURN;
+}
+
+void THD::awake_me()
+{
+  DBUG_ENTER("THD::awake_me");
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
   /* Broadcast a condition to kick the target if it is waiting on it. */
   if (mysys_var)
   {
+    DBUG_PRINT("enter", ("this: %p current_thd: %p  mysys_var",
+                         this, current_thd));
     mysql_mutex_lock(&mysys_var->mutex);
     if (!system_thread)		// Don't abort locks
       mysys_var->abort=1;
@@ -2145,7 +2156,7 @@ void THD::reset_killed()
 {
   /*
     Resetting killed has to be done under a mutex to ensure
-    its not done during an awake() call.
+    its not done during an kill_me_pls() call.
   */
   DBUG_ENTER("reset_killed");
   if (killed != NOT_KILLED)
@@ -4973,7 +4984,7 @@ extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
 {
   size_t len= 0;
   /* InnoDB invokes this function while holding internal mutexes.
-  THD::awake() will hold LOCK_thd_data while invoking an InnoDB
+  THD::kill_me_pls() will hold LOCK_thd_data while invoking an InnoDB
   function that would acquire the internal mutex. Because this
   function is a non-essential part of information_schema view output,
   we will break the deadlock by avoiding a mutex wait here

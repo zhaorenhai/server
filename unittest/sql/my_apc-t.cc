@@ -151,7 +151,7 @@ void *test_apc_requestor_thread(void *ptr)
     bool timed_out;
 
     mysql_mutex_lock(&target_mutex);
-    bool res= apc_target.make_apc_call(&my_thd, &apc_order, 60, &timed_out);
+    bool res= apc_target.make_apc_call(NULL, &my_thd, &apc_order, 60, &timed_out);
     if (res)
     {
       if (timed_out)

@@ -123,7 +123,7 @@ void init_show_explain_psi_keys(void)
                     timeout occurred)
 */
 
-bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call, 
+bool Apc_target::make_apc_call(THD *thd, THD *caller_thd, Apc_call *call,
                                int timeout_sec, bool *timed_out)
 {
   bool res= TRUE;
@@ -139,7 +139,11 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
                     NULL);
     enqueue_request(&apc_request);
     apc_request.what="enqueued by make_apc_call";
- 
+
+#ifndef MY_APC_STANDALONE
+    thd->awake_me();
+#endif //MY_APC_STANDALONE
+
     struct timespec abstime;
     const int timeout= timeout_sec;
     set_timespec(abstime, timeout);

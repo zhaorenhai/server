@@ -231,7 +231,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 
     mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
-    victim_thd->awake_no_mutex(KILL_QUERY);
+    victim_thd->kill_me_pls_no_mutex(KILL_QUERY);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {

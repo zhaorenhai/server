@@ -3125,7 +3125,8 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     explain_req.failed_to_produce= FALSE;
     
     /* Ok, we have a lock on target->LOCK_thd_kill, can call: */
-    bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
+    bres= tmp->apc_target.make_apc_call(tmp, thd, &explain_req,
+                                        timeout_sec, &timed_out);
 
     if (bres || explain_req.failed_to_produce)
     {

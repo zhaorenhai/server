@@ -668,7 +668,7 @@ Event_scheduler::stop()
     sql_print_information("Event Scheduler: Killing the scheduler thread, "
                           "thread id %lu",
                           (ulong) scheduler_thd->thread_id);
-    scheduler_thd->awake(KILL_CONNECTION);
+    scheduler_thd->kill_me_pls(KILL_CONNECTION);
 
     /* thd could be 0x0, when shutting down */
     sql_print_information("Event Scheduler: "
@@ -676,7 +676,7 @@ Event_scheduler::stop()
 
     /*
       Wait only 2 seconds, as there is a small chance the thread missed the
-      above awake() call and we may have to do it again
+      above kill_me_pls() call and we may have to do it again
     */
     struct timespec top_time;
     set_timespec(top_time, 2);
