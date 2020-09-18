@@ -4059,7 +4059,8 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
     if (error == ETIMEDOUT || error == ETIME)
     {
       /* Return error if timed out or connection is broken. */
-      if (!cmp_timespec(timeout, m_abs_timeout) || !m_thd->is_connected())
+      if (!cmp_timespec(timeout, m_abs_timeout) || !m_thd->is_connected() ||
+          m_thd->check_killed())
         break;
     }
     /* Otherwise, propagate status to the caller. */
