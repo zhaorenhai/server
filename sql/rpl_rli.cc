@@ -140,8 +140,8 @@ int init_relay_log_info(Relay_log_info* rli,
   rli->slave_skip_counter=0;
   rli->abort_pos_wait=0;
   rli->log_space_limit= relay_log_space_limit;
-  rli->log_space_total= 0;
-
+  my_atomic_store64_explicit((volatile int64*)(&rli->log_space_total), 0,
+                             MY_MEMORY_ORDER_RELAXED);
   char pattern[FN_REFLEN];
   (void) my_realpath(pattern, slave_load_tmpdir, 0);
   if (fn_format(pattern, PREFIX_SQL_LOAD, pattern, "",
@@ -467,7 +467,8 @@ static inline int add_relay_log(Relay_log_info* rli,LOG_INFO* linfo)
                     linfo->log_file_name);
     DBUG_RETURN(1);
   }
-  rli->log_space_total += s.st_size;
+  my_atomic_add64_explicit((volatile int64*)(&rli->log_space_total),
+                           s.st_size, MY_MEMORY_ORDER_RELAXED);
   DBUG_PRINT("info",("log_space_total: %llu", rli->log_space_total));
   DBUG_RETURN(0);
 }
@@ -477,7 +478,8 @@ static int count_relay_log_space(Relay_log_info* rli)
 {
   LOG_INFO linfo;
   DBUG_ENTER("count_relay_log_space");
-  rli->log_space_total= 0;
+  my_atomic_store64_explicit((volatile int64*)(&rli->log_space_total), 0,
+                             MY_MEMORY_ORDER_RELAXED);
   if (rli->relay_log.find_log_pos(&linfo, NullS, 1))
   {
     sql_print_error("Could not find first log while counting relay log space");
@@ -1202,8 +1204,8 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     strmake_buf(rli->group_relay_log_name, rli->relay_log.get_log_fname());
     strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-    rli->log_space_total= 0;
-
+    my_atomic_store64_explicit((volatile int64*)(&rli->log_space_total), 0,
+                               MY_MEMORY_ORDER_RELAXED);
     if (count_relay_log_space(rli))
     {
       *errmsg= "Error counting relay log space";
