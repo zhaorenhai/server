@@ -778,6 +778,7 @@ sub run_test_server ($$$) {
             # Test failure due to warnings, force is off
             return ("Warnings in log", 1, $completed, $extra_warnings);
           }
+        redo;
         }
 	elsif ($line =~ /^SPENT/) {
 	  add_total_times($line);
