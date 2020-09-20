@@ -1042,6 +1042,38 @@ static int ull2dec(ulonglong from, decimal_t *to)
   return error;
 }
 
+static int uint128_to_dec(unsigned __int128 from, decimal_t *to)
+{
+  int intg1, error=E_DEC_OK;
+  unsigned __int128 x= from;
+  dec1 *buf;
+
+  sanity(to);
+
+  if (!from)
+  {
+    decimal_make_zero(to);
+    return E_DEC_OK;
+  }
+
+  for (intg1=1; from >= DIG_BASE; intg1++, from/=DIG_BASE) {}
+  if (unlikely(intg1 > to->len))
+  {
+    intg1=to->len;
+    error=E_DEC_OVERFLOW;
+  }
+  to->frac=0;
+  for(to->intg= (intg1-1)*DIG_PER_DEC1; from; to->intg++, from/=10) {}
+
+  for (buf=to->buf+intg1; intg1; intg1--)
+  {
+    unsigned __int128 y= x/DIG_BASE;
+    *--buf=(decimal_digit_t)(x-y*DIG_BASE);
+    x=y;
+  }
+  return error;
+}
+
 int ulonglong2decimal(ulonglong from, decimal_t *to)
 {
   to->sign=0;
@@ -1058,6 +1090,34 @@ int longlong2decimal(longlong from, decimal_t *to)
   }
   return ull2dec(from, to);
 }
+
+
+int uint128_to_decimal(unsigned __int128  from, decimal_t *to)
+{
+  to->sign=0;
+  return uint128_to_dec(from, to);
+}
+
+
+int sint128_to_decimal(__int128 from, decimal_t *to)
+{
+  if ((to->sign= from < 0))
+  {
+    int rc;
+    static const __int128 minInt128= ((__int128) (0x8000000000000000LL)) << 64;
+    if (from == minInt128) // avoid undefined behavior
+    {
+      rc= uint128_to_decimal((unsigned __int128) minInt128, to);
+      to->sign= 1;
+      return rc;
+    }
+    rc= uint128_to_decimal((unsigned __int128) -from, to);
+    to->sign= 1;
+    return rc;
+  }
+  return uint128_to_decimal((unsigned __int128)from, to);
+}
+
 
 int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 {

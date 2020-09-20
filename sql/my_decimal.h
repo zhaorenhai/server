@@ -152,6 +152,37 @@ public:
     init();
     check_result(E_DEC_FATAL_ERROR, bin2decimal(bin, this, prec, scale));
   }
+
+  my_decimal(__int128 val, int shift= 0)
+  {
+    init();
+#if !defined(DBUG_OFF)
+    int error=
+#endif
+    sint128_to_decimal(val, this);
+    DBUG_ASSERT(!error);
+#if !defined(DBUG_OFF)
+    error=
+#endif
+    decimal_shift(this, shift);
+    DBUG_ASSERT(!error);
+  }
+
+  my_decimal(unsigned __int128 val, int shift= 0)
+  {
+    init();
+#if !defined(DBUG_OFF)
+    int error=
+#endif
+    uint128_to_decimal((__int128) val, this);
+    DBUG_ASSERT(!error);
+#if !defined(DBUG_OFF)
+    error=
+#endif
+    decimal_shift(this, shift);
+    DBUG_ASSERT(!error);
+  }
+
   my_decimal(Field *field);
   ~my_decimal()
   {

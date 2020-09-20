@@ -1,4 +1,5 @@
 /* Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,15 +89,130 @@ test_decimal2string()
   ok(i == 50, "No overrun");
 
   return 0;
-
 }
+
+
+class my_decimal_str
+{
+public:
+  char strbuf[DECIMAL_MAX_STR_LENGTH];
+  my_decimal_str(const my_decimal &dec)
+  {
+    int len= ((int) sizeof(strbuf)) - 1;
+    decimal2string(&dec, strbuf, &len, 0, 0, 'X');
+  }
+  void check(const char *expect)
+  {
+    bool res= !strcmp(strbuf, expect);
+    if (!res)
+      diag("%s", strbuf);
+    ok (res, "%s", expect);
+  }
+};
+
+
+static int
+test_uint128_to_decimal()
+{
+  unsigned __int128 imax= (((unsigned __int128) 0xFFFFFFFFFFFFFFFFULL) << 64) +
+                          0xFFFFFFFFFFFFFFFFULL;
+  my_decimal dmin(((unsigned __int128) 0));
+  my_decimal_str(dmin).check("0");
+
+  my_decimal d255(((unsigned __int128) 0xFF));
+  my_decimal_str(d255).check("255");
+
+  my_decimal d_ll_mul_10e18(((unsigned __int128) 0x7FFFFFFFFFFFFFFFULL) * 1000000000000000000);
+  my_decimal_str(d_ll_mul_10e18).check("9223372036854775807000000000000000000");
+
+  my_decimal nines37(((unsigned __int128) 9999999999999999999ULL) * 1000000000000000000 + 999999999999999999);
+  my_decimal_str(nines37).check("9999999999999999999999999999999999999");
+
+  my_decimal d_ull_mul_10e18(((unsigned __int128) 0xFFFFFFFFFFFFFFFFULL) * 1000000000000000000);
+  my_decimal_str(d_ull_mul_10e18).check("18446744073709551615000000000000000000");
+
+  my_decimal_str(my_decimal(imax)).check("340282366920938463463374607431768211455");
+
+  my_decimal_str(my_decimal(imax,  -1)).check("34028236692093846346337460743176821145.5");
+  my_decimal_str(my_decimal(imax,  -2)).check("3402823669209384634633746074317682114.55");
+  my_decimal_str(my_decimal(imax,  -3)).check("340282366920938463463374607431768211.455");
+  my_decimal_str(my_decimal(imax,  -4)).check("34028236692093846346337460743176821.1455");
+  my_decimal_str(my_decimal(imax,  -5)).check("3402823669209384634633746074317682.11455");
+  my_decimal_str(my_decimal(imax,  -6)).check("340282366920938463463374607431768.211455");
+  my_decimal_str(my_decimal(imax,  -7)).check("34028236692093846346337460743176.8211455");
+  my_decimal_str(my_decimal(imax,  -8)).check("3402823669209384634633746074317.68211455");
+  my_decimal_str(my_decimal(imax,  -9)).check("340282366920938463463374607431.768211455");
+  my_decimal_str(my_decimal(imax, -10)).check("34028236692093846346337460743.1768211455");
+  my_decimal_str(my_decimal(imax, -11)).check("3402823669209384634633746074.31768211455");
+  my_decimal_str(my_decimal(imax, -12)).check("340282366920938463463374607.431768211455");
+  my_decimal_str(my_decimal(imax, -13)).check("34028236692093846346337460.7431768211455");
+  my_decimal_str(my_decimal(imax, -14)).check("3402823669209384634633746.07431768211455");
+  my_decimal_str(my_decimal(imax, -15)).check("340282366920938463463374.607431768211455");
+  my_decimal_str(my_decimal(imax, -16)).check("34028236692093846346337.4607431768211455");
+  my_decimal_str(my_decimal(imax, -17)).check("3402823669209384634633.74607431768211455");
+  my_decimal_str(my_decimal(imax, -18)).check("340282366920938463463.374607431768211455");
+  my_decimal_str(my_decimal(imax, -18)).check("340282366920938463463.374607431768211455");
+  my_decimal_str(my_decimal(imax, -19)).check("34028236692093846346.3374607431768211455");
+  my_decimal_str(my_decimal(imax, -20)).check("3402823669209384634.63374607431768211455");
+  my_decimal_str(my_decimal(imax, -21)).check("340282366920938463.463374607431768211455");
+  my_decimal_str(my_decimal(imax, -22)).check("34028236692093846.3463374607431768211455");
+  my_decimal_str(my_decimal(imax, -23)).check("3402823669209384.63463374607431768211455");
+  my_decimal_str(my_decimal(imax, -24)).check("340282366920938.463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -25)).check("34028236692093.8463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -26)).check("3402823669209.38463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -27)).check("340282366920.938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -28)).check("34028236692.0938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -29)).check("3402823669.20938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -30)).check("340282366.920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -31)).check("34028236.6920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -32)).check("3402823.66920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -33)).check("340282.366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -34)).check("34028.2366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -35)).check("3402.82366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -36)).check("340.282366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -37)).check("34.0282366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -38)).check("3.40282366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -39)).check("0.340282366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -40)).check("0.0340282366920938463463374607431768211455");
+  my_decimal_str(my_decimal(imax, -41)).check("0.00340282366920938463463374607431768211455");
+
+  return 0;
+};
+
+
+static int
+test_sint128_to_decimal()
+{
+  __int128 imax= (((__int128) 0x7FFFFFFFFFFFFFFFULL) << 64) + 0xFFFFFFFFFFFFFFFFULL;
+  __int128 imin= -imax - 1;
+
+  my_decimal dminus1((__int128) -1);
+  my_decimal_str(dminus1).check("-1");
+
+  my_decimal dmin(imin);
+  my_decimal_str(dmin).check("-170141183460469231731687303715884105728");
+
+  my_decimal nnines37(((__int128) 9999999999999999999ULL) * (-1000000000000000000) - 999999999999999999);
+  my_decimal_str(nnines37).check("-9999999999999999999999999999999999999");
+
+  my_decimal pnines37(((__int128) 9999999999999999999ULL) * 1000000000000000000 + 999999999999999999);
+  my_decimal_str(pnines37).check("9999999999999999999999999999999999999");
+
+  my_decimal dmax(imax);
+  my_decimal_str(dmax).check("170141183460469231731687303715884105727");
+
+  return 0;
+}
+
 int main()
 {
-  plan(15);
+  plan(68);
   diag("Testing my_decimal constructor and assignment operators");
 
   test_copy_and_compare();
   test_decimal2string();
+  test_uint128_to_decimal();
+  test_sint128_to_decimal();
 
   return exit_status();
 }

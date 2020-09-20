@@ -48,6 +48,8 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
 int decimal2ulonglong(const decimal_t *from, ulonglong *to);
 int ulonglong2decimal(ulonglong from, decimal_t *to);
 int decimal2longlong(const decimal_t *from, longlong *to);
+int sint128_to_decimal(__int128 from, decimal_t *to);
+int uint128_to_decimal(unsigned __int128 from, decimal_t *to);
 int longlong2decimal(longlong from, decimal_t *to);
 int decimal2double(const decimal_t *from, double *to);
 int double2decimal(double from, decimal_t *to);
@@ -61,6 +63,7 @@ int decimal_result_size(decimal_t *from1, decimal_t *from2, char op,
                         int param);
 
 int decimal_intg(const decimal_t *from);
+int decimal_shift(decimal_t *dec, int shift);
 int decimal_add(const decimal_t *from1, const decimal_t *from2, decimal_t *to);
 int decimal_sub(const decimal_t *from1, const decimal_t *from2, decimal_t *to);
 int decimal_cmp(const decimal_t *from1, const decimal_t *from2);
