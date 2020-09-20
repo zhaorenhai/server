@@ -1,0 +1,5 @@
+partition_move        : Disabled temporarily while testing buildbot setup
+partition             : Disabled temporarily while testing buildbot setup
+replication_mixed     : Disabled temporarily while testing buildbot setup
+replication_partition : Disabled temporarily while testing buildbot setup
+replication_stmt      : Disabled temporarily while testing buildbot setup
