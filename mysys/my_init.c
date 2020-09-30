@@ -103,6 +103,9 @@ my_bool my_init(void)
   /* Initialize CPU architecture specific hardware based crc32 optimization */
   my_checksum_init();
 
+  /* Initialize CPU architecture specific hardware based adler32 optimization */
+  my_adler32_init();
+
   if (my_thread_global_init())
     return 1;
 

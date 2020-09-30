@@ -4005,6 +4005,7 @@ fail:
 
 	ut_crc32_init();
 	my_checksum_init();
+  my_adler32_init();
 	recv_sys.create();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES

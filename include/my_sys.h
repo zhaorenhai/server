@@ -33,7 +33,6 @@ C_MODE_START
 #endif
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
-
 #define MY_INIT(name)   { my_progname= name; my_init(); }
 
 /**
@@ -917,6 +916,10 @@ extern MYSQL_PLUGIN_IMPORT my_crc32_t my_checksum;
 int crc32_aarch64_available(void);
 const char *crc32c_aarch64_available(void);
 #endif
+
+void my_adler32_init(void);
+typedef unsigned long (*my_adler32_t)(unsigned long, const unsigned char *, unsigned int);
+extern MYSQL_PLUGIN_IMPORT my_adler32_t my_adler32;
 
 #ifdef DBUG_ASSERT_EXISTS
 extern void my_debug_put_break_here(void);

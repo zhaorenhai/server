@@ -45,7 +45,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c)
+                                file_logger.c my_dlerror.c neon_adler32.c)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}

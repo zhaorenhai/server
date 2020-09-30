@@ -17,7 +17,7 @@
 #include <my_global.h>
 #include <my_sys.h>
 #include <zlib.h>
-
+#include "neon_adler32.h"
 #if !defined(HAVE_CRC32_VPMSUM)
 /* TODO: remove this once zlib adds inherent support for hardware accelerated
 crc32 for all architectures. */
@@ -55,4 +55,17 @@ void my_checksum_init(void)
 }
 #else
 void my_checksum_init(void) {}
+#endif
+
+my_adler32_t my_adler32;
+#ifdef __aarch64__
+void my_adler32_init(void)
+{
+  my_adler32= NEON_adler32;
+}
+#else
+void my_adler32_init(void)
+{
+  my_adler32= adler32;
+}
 #endif

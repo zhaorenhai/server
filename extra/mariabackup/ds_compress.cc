@@ -451,7 +451,7 @@ compress_worker_thread_func(void *arg)
 		That's why  0x00000001 is being passed here to be compatible
 		with qpress implementation. */
 
-		thd->adler = adler32(0x00000001, (uchar *) thd->to,
+		thd->adler = my_adler32(0x00000001, (uchar *) thd->to,
 				     (uInt)thd->to_len);
 	}
 

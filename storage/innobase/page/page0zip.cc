@@ -4647,10 +4647,10 @@ page_zip_calc_checksum(
 	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
 		ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
-		adler = adler32(0L, s + FIL_PAGE_OFFSET,
+		adler = my_adler32(0L, s + FIL_PAGE_OFFSET,
 				FIL_PAGE_LSN - FIL_PAGE_OFFSET);
-		adler = adler32(adler, s + FIL_PAGE_TYPE, 2);
-		adler = adler32(
+		adler = my_adler32(adler, s + FIL_PAGE_TYPE, 2);
+		adler = my_adler32(
 			adler, s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
 			static_cast<uInt>(size)
 			- FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
